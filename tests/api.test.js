@@ -97,3 +97,57 @@ test('room links and notes pages serve the UI', async () => {
   assert.match(await (await fetch(`${BASE}/standup`)).text(), /TeamMeet/);
   assert.match(await (await fetch(`${BASE}/notes/abc`)).text(), /Meeting notes/i);
 });
+
+test('rooms endpoint returns active rooms safely', async () => {
+  const res = await fetch(`${BASE}/api/rooms`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.ok(Array.isArray(data.rooms));
+});
+
+test('admin keys: fetch masked keys and update dynamically', async () => {
+  const getRes = await fetch(`${BASE}/api/admin/keys`, { headers: { 'x-team-passcode': 'letmein' } });
+  assert.equal(getRes.status, 200);
+  const keys = await getRes.json();
+  assert.equal(keys.livekitUrl, 'wss://rtc.test');
+  assert.ok(keys.apiKeyMasked.includes('***'));
+
+  const postRes = await post('/api/admin/keys', {
+    livekitUrl: 'wss://updated.rtc.test',
+    livekitApiKey: 'newkey',
+    livekitApiSecret: 'newsecret_newsecret_newsecret_123',
+    driveFolderId: 'https://drive.google.com/drive/folders/test12345'
+  });
+  assert.equal(postRes.status, 200);
+  const updated = await postRes.json();
+  assert.equal(updated.ok, true);
+  assert.equal(updated.livekitUrl, 'wss://updated.rtc.test');
+});
+
+test('drive sync endpoint saves folder link', async () => {
+  const res = await post('/api/drive/sync', {
+    sessionId: 'general',
+    driveFolderUrl: 'https://drive.google.com/drive/folders/teamfolder'
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.synced, true);
+  assert.equal(body.driveFolder, 'https://drive.google.com/drive/folders/teamfolder');
+});
+
+test('token: carries avatar and email in LiveKit metadata', async () => {
+  const r = await post('/api/token', {
+    room: 'dev-room',
+    name: 'Supraja',
+    email: 'supraja@test.com',
+    avatar: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+  });
+  assert.equal(r.status, 200);
+  const { token } = await r.json();
+  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+  const meta = JSON.parse(payload.metadata);
+  assert.equal(meta.email, 'supraja@test.com');
+  assert.ok(meta.avatar.startsWith('data:image/png'));
+});
+

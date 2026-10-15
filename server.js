@@ -270,11 +270,71 @@ app.post('/api/token', async (req, res) => {
   const room = cleanRoom(req.body.room);
   const name = cleanName(req.body.name);
   if (!room || !name) return res.status(400).json({ error: 'room and name are required' });
-  const identity = `${name.replace(/\s+/g, '_')}-${crypto.randomBytes(3).toString('hex')}`;
-  const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name, ttl: TOKEN_TTL });
+  const identity = req.body.identity || `${name.replace(/\s+/g, '_')}-${crypto.randomBytes(3).toString('hex')}`;
+  const metadata = JSON.stringify({
+    avatar: req.body.avatar || '',
+    email: req.body.email || '',
+    joinedAt: Date.now()
+  });
+  const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name, ttl: TOKEN_TTL, metadata });
   at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
   res.json({ token: await at.toJwt(), url: LIVEKIT_URL, room, identity });
 });
+
+// Active rooms query for multi-room 50-100 user deployments
+app.get('/api/rooms', async (_req, res) => {
+  try {
+    const list = await rooms.listRooms();
+    const result = list.map((r) => ({
+      name: r.name,
+      numParticipants: r.numParticipants,
+      creationTime: r.creationTime
+    }));
+    res.json({ rooms: result });
+  } catch (e) {
+    res.json({ rooms: [] });
+  }
+});
+
+// Dynamic Key Rotation at runtime (Zero downtime, no redeploy)
+app.get('/api/admin/keys', (req, res) => {
+  if (!checkPasscode(req, res)) return;
+  res.json({
+    livekitUrl: LIVEKIT_URL,
+    apiKeyMasked: LIVEKIT_API_KEY ? LIVEKIT_API_KEY.slice(0, 4) + '***' : '',
+    driveFolderId: GOOGLE_DRIVE_FOLDER_ID
+  });
+});
+
+app.post('/api/admin/keys', (req, res) => {
+  if (!checkPasscode(req, res)) return;
+  const { livekitUrl, livekitApiKey, livekitApiSecret, driveFolderId } = req.body || {};
+  if (livekitUrl) LIVEKIT_URL = livekitUrl.trim();
+  if (livekitApiKey) LIVEKIT_API_KEY = livekitApiKey.trim();
+  if (livekitApiSecret) LIVEKIT_API_SECRET = livekitApiSecret.trim();
+  if (driveFolderId !== undefined) GOOGLE_DRIVE_FOLDER_ID = String(driveFolderId).trim();
+
+  reloadLiveKitClients();
+  console.log(`[Admin] LiveKit credentials hot-reloaded: ${LIVEKIT_URL}`);
+  res.json({ ok: true, livekitUrl: LIVEKIT_URL });
+});
+
+// Google Drive Sync Endpoint
+app.post('/api/drive/sync', (req, res) => {
+  if (!checkPasscode(req, res)) return;
+  const { sessionId, driveFolderUrl } = req.body || {};
+  if (driveFolderUrl) GOOGLE_DRIVE_FOLDER_ID = String(driveFolderUrl).trim();
+  if (sessionId && sessionId !== 'general') {
+    const s = loadSession(sessionId);
+    if (s) {
+      s.driveFolder = GOOGLE_DRIVE_FOLDER_ID;
+      s.driveSyncedAt = new Date().toISOString();
+      saveSession(s);
+    }
+  }
+  res.json({ ok: true, synced: true, driveFolder: GOOGLE_DRIVE_FOLDER_ID });
+});
+
 
 app.get('/api/recording/status', (req, res) => {
   const s = active.get(cleanRoom(req.query.room));

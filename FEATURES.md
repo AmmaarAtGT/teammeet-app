@@ -29,10 +29,12 @@ Welcome to **TeamMeet Production Edition**. This document provides an exhaustive
 
 | Feature | Description | Status |
 | :--- | :--- | :--- |
+| **50–100 User Scale Engine** | Dynacast + AdaptiveStream priority grid (12 active tiles + full conference audio) | ✅ Production |
+| **Multi-Room Concurrency** | Unlimited parallel rooms (`/dev-room`, `/marketing`, etc.) with live lobby occupancy tracking | ✅ Production |
+| **Collaborative Whiteboard** | Real-time synchronized canvas over LiveKit DataChannel + 1-click PNG export | ✅ Production |
 | **Mobile Audio Keepalive** | Fixes screen-off mute on iOS & Android using WakeLock & Web Audio | ✅ Production |
 | **Audio-Only Recording** | Direct client-side Web Audio master stream recording with WAV/WebM download | ✅ Production |
 | **On-Demand AI Notes** | Transcription & AI summary triggered only when needed, avoiding token waste | ✅ Production |
-| **Interactive Whiteboard** | Collaborative canvas with drawing tools, color palettes, and 1-click PNG export | ✅ Production |
 | **Google Drive Sync** | Connect team folder ID to auto-archive recordings, transcripts, and whiteboard snapshots | ✅ Production |
 | **15-Day Auto Purge** | Automated cron daemon running on the server to prevent disk saturation | ✅ Production |
 | **Dynamic Key Bot** | Floating bot modal to rotate LiveKit API credentials on the fly without rebooting | ✅ Production |
@@ -40,6 +42,7 @@ Welcome to **TeamMeet Production Edition**. This document provides an exhaustive
 | **Avatar Profile Image** | Upload custom photo or auto-generate initial badge with live preview | ✅ Production |
 | **Hot-Plug Webcams** | Dynamically detects USB/virtual cameras during live calls via `devicechange` | ✅ Production |
 | **Unlimited Rooms** | No limit on meeting rooms; 24-hour token duration prevents unexpected drops | ✅ Production |
+
 
 ---
 

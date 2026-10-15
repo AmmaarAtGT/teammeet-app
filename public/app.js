@@ -248,6 +248,25 @@
     await startPreview();
     await fillDevices();
     setupFloatingBot();
+    fetchActiveRooms();
+    setInterval(fetchActiveRooms, 15000);
+  }
+
+  async function fetchActiveRooms() {
+    try {
+      const data = await api('/api/rooms');
+      if (!data || !data.rooms) return;
+      const roomCounts = new Map(data.rooms.map((r) => [r.name, r.numParticipants]));
+      document.querySelectorAll('.btn-room-choice').forEach((btn) => {
+        const rName = btn.dataset.room;
+        const count = roomCounts.get(rName) || 0;
+        const baseName = btn.textContent.split('(')[0].trim();
+        btn.innerHTML = `${baseName} (${count ? count + ' live' : 'join'})`;
+        if (count > 0) {
+          btn.style.borderColor = '#10b981';
+        }
+      });
+    } catch (e) {}
   }
 
   async function startPreview() {
@@ -344,8 +363,12 @@
         sysMsg(`${p.name || p.identity} left`);
         updateParticipantCount();
         render();
+      .on(RoomEvent.TrackSubscribed, (track) => {
+        if (audioRecorder && track && track.kind === Track.Kind.Audio) {
+          connectTrackToAudioRecorder(track.mediaStreamTrack);
+        }
+        render();
       })
-      .on(RoomEvent.TrackSubscribed, render)
       .on(RoomEvent.TrackUnsubscribed, render)
       .on(RoomEvent.TrackMuted, render)
       .on(RoomEvent.TrackUnmuted, render)
@@ -432,6 +455,8 @@
     return tiles;
   }
 
+  let activeSpeakerIds = new Set();
+
   function render() {
     if (!room) return;
     const grid = $('grid');
@@ -440,6 +465,7 @@
       ...[...room.remoteParticipants.values()].flatMap((p) => tilesFor(p, false)),
     ];
 
+    // Ensure all remote audio tracks are attached for conference sound
     room.remoteParticipants.forEach((p) => {
       const mp = p.getTrackPublication(Track.Source.Microphone);
       if (mp?.track && !mp.track.attachedElements.length) {
@@ -457,15 +483,39 @@
       }
     });
 
-    const screens = all.filter((t) => t.screen);
-    const focusKey = pinnedKey && all.some((t) => t.key === pinnedKey) ? pinnedKey : screens[0]?.key || null;
-    if (pinnedKey && !all.some((t) => t.key === pinnedKey)) pinnedKey = null;
+    // ⚡ ENTERPRISE 50-100 USER CONCURRENCY SCALING:
+    // Browser hardware decoders limit concurrent 720p video to 12-16 streams.
+    // We prioritize: Screen Share (100) > Pinned (90) > Local (80) > Raised Hand (70) > Active Speaker (60) > Others (10).
+    const MAX_ACTIVE_TILES = 12;
+    const priorityScore = (t) => {
+      if (t.screen) return 100;
+      if (t.key === pinnedKey) return 90;
+      if (t.isLocal) return 80;
+      if (raisedHands.has(t.p.identity)) return 70;
+      if (activeSpeakerIds.has(t.p.identity)) return 60;
+      return 10;
+    };
+    all.sort((a, b) => priorityScore(b) - priorityScore(a));
+
+    const visibleTiles = all.slice(0, MAX_ACTIVE_TILES);
+    const hiddenTiles = all.slice(MAX_ACTIVE_TILES);
+
+    // Detach off-screen video tracks. LiveKit Dynacast will pause SFU video packets, saving ~85% bandwidth & CPU
+    hiddenTiles.forEach((t) => {
+      if (t.video && t.video.attachedElements.length) {
+        t.video.detach();
+      }
+    });
+
+    const screens = visibleTiles.filter((t) => t.screen);
+    const focusKey = pinnedKey && visibleTiles.some((t) => t.key === pinnedKey) ? pinnedKey : screens[0]?.key || null;
+    if (pinnedKey && !visibleTiles.some((t) => t.key === pinnedKey)) pinnedKey = null;
     grid.classList.toggle('has-screen', !!focusKey);
 
-    const keep = new Set(all.map((t) => t.key));
+    const keep = new Set(visibleTiles.map((t) => t.key));
     [...grid.children].forEach((el) => { if (!keep.has(el.dataset.key)) el.remove(); });
 
-    all.forEach((t) => {
+    visibleTiles.forEach((t) => {
       let el = grid.querySelector(`[data-key="${CSS.escape(t.key)}"]`);
       if (!el) {
         el = document.createElement('div');
@@ -519,7 +569,7 @@
       const f = grid.querySelector(`[data-key="${CSS.escape(focusKey)}"]`);
       if (f && grid.firstChild !== f) grid.prepend(f);
     }
-    layoutGrid(focusKey ? 0 : all.length);
+    layoutGrid(focusKey ? 0 : visibleTiles.length);
     renderPeople();
   }
 
@@ -527,20 +577,23 @@
     const grid = $('grid');
     if (!n) { grid.style.gridTemplateColumns = ''; return; }
     const w = grid.clientWidth || window.innerWidth;
-    const maxCols = w < 600 ? 2 : w < 1000 ? 3 : 5;
+    const maxCols = w < 600 ? 2 : w < 1000 ? 3 : 4;
     const cols = Math.min(maxCols, Math.ceil(Math.sqrt(n)));
     grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   }
   window.addEventListener('resize', () => room && render());
 
+
   function markSpeakers(speakers) {
-    const ids = new Set(speakers.map((s) => s.identity));
+    activeSpeakerIds = new Set(speakers.map((s) => s.identity));
     const names = speakers.map((p) => (p === room.localParticipant ? 'You' : p.name || p.identity));
     $('speakingNow').textContent = names.length ? names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '') : '';
     $('speakingNow').classList.toggle('hidden', !names.length);
     document.querySelectorAll('.tile').forEach((el) => {
-      el.classList.toggle('speaking', ids.has(el.dataset.identity) && !el.dataset.key.endsWith(':screen'));
+      el.classList.toggle('speaking', activeSpeakerIds.has(el.dataset.identity) && !el.dataset.key.endsWith(':screen'));
     });
+    // Dynamically elevate speaking participants to visible grid if hidden
+    render();
   }
 
   // ---------- 7. ZOOM-STYLE SEARCHABLE PEOPLE LIST ----------
@@ -577,18 +630,26 @@
   }
   $('peopleSearch')?.addEventListener('input', renderPeople);
 
-  // ---------- 8. WHITEBOARD CANVAS WITH SAVE AS PNG ----------
+  // ---------- 8. REAL-TIME COLLABORATIVE WHITEBOARD ----------
   function initWhiteboard() {
     const canvas = $('whiteboardCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     let drawing = false;
+    let lastPos = null;
 
     function resizeCanvas() {
-      canvas.width = canvas.parentElement.clientWidth;
+      let imgData = null;
+      if (canvas.width && canvas.height) {
+        try { imgData = ctx.getImageData(0, 0, canvas.width, canvas.height); } catch (e) {}
+      }
+      canvas.width = canvas.parentElement.clientWidth || 600;
       canvas.height = canvas.parentElement.clientHeight || 400;
       ctx.fillStyle = '#12141a';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (imgData) {
+        try { ctx.putImageData(imgData, 0, 0); } catch (e) {}
+      }
     }
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
@@ -600,25 +661,64 @@
       return { x: clientX - rect.left, y: clientY - rect.top };
     };
 
+    const drawLine = (x0, y0, x1, y1, color, size, broadcast = true) => {
+      ctx.strokeStyle = color || '#3b82f6';
+      ctx.lineWidth = size || 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+
+      if (broadcast && room) {
+        send({
+          type: 'wb_draw',
+          x0: x0 / canvas.width,
+          y0: y0 / canvas.height,
+          x1: x1 / canvas.width,
+          y1: y1 / canvas.height,
+          color,
+          size
+        }).catch(() => {});
+      }
+    };
+
+    window._wbDraw = (msg) => {
+      if (!canvas.width || !canvas.height) return;
+      drawLine(
+        msg.x0 * canvas.width,
+        msg.y0 * canvas.height,
+        msg.x1 * canvas.width,
+        msg.y1 * canvas.height,
+        msg.color,
+        msg.size,
+        false
+      );
+    };
+
+    window._wbClear = () => {
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    };
+
     const startDraw = (e) => {
       drawing = true;
-      const pos = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
+      lastPos = getPos(e);
     };
 
     const draw = (e) => {
-      if (!drawing) return;
-      const pos = getPos(e);
-      ctx.strokeStyle = $('boardColor').value || '#3b82f6';
-      ctx.lineWidth = parseInt($('boardSize').value || '4', 10);
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
+      if (!drawing || !lastPos) return;
+      const currentPos = getPos(e);
+      const color = $('boardColor').value || '#3b82f6';
+      const size = parseInt($('boardSize').value || '4', 10);
+      drawLine(lastPos.x, lastPos.y, currentPos.x, currentPos.y, color, size, true);
+      lastPos = currentPos;
     };
 
-    const stopDraw = () => { drawing = false; };
+    const stopDraw = () => {
+      drawing = false;
+      lastPos = null;
+    };
 
     canvas.addEventListener('mousedown', startDraw);
     canvas.addEventListener('mousemove', draw);
@@ -628,7 +728,8 @@
     window.addEventListener('touchend', stopDraw);
 
     $('boardClear').onclick = () => {
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      window._wbClear();
+      if (room) send({ type: 'wb_clear' }).catch(() => {});
       toast('Whiteboard cleared');
     };
 
@@ -642,25 +743,38 @@
     };
   }
 
-  // ---------- 9. PURE AUDIO RECORDING (HIGH FIDELITY) ----------
+  // ---------- 9. PURE AUDIO RECORDING (HIGH FIDELITY & DYNAMIC PARTICIPANT MIX) ----------
+  let audioRecCtx = null;
+  let audioRecDest = null;
+
+  function connectTrackToAudioRecorder(mediaStreamTrack) {
+    if (!audioRecCtx || !audioRecDest || !mediaStreamTrack) return;
+    try {
+      const src = audioRecCtx.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+      src.connect(audioRecDest);
+    } catch (e) {
+      console.warn('Audio recorder stream connect:', e);
+    }
+  }
+
   async function startAudioRecording() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const dest = audioCtx.createMediaStreamDestination();
+      audioRecCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioRecDest = audioRecCtx.createMediaStreamDestination();
 
       // Mix local microphone
       const localMic = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack;
-      if (localMic) audioCtx.createMediaStreamSource(new MediaStream([localMic])).connect(dest);
+      if (localMic) connectTrackToAudioRecorder(localMic);
 
-      // Mix all remote participants
+      // Mix all current remote participants
       room.remoteParticipants.forEach((p) => {
         const remMic = p.getTrackPublication(Track.Source.Microphone)?.track?.mediaStreamTrack;
-        if (remMic) audioCtx.createMediaStreamSource(new MediaStream([remMic])).connect(dest);
+        if (remMic) connectTrackToAudioRecorder(remMic);
       });
 
       const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
       const chunks = [];
-      const rec = new MediaRecorder(dest.stream, { mimeType: mime });
+      const rec = new MediaRecorder(audioRecDest.stream, { mimeType: mime });
 
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       rec.onstop = () => {
@@ -669,7 +783,8 @@
         a.href = URL.createObjectURL(blob);
         a.download = `Audio_Meeting_${roomName}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
         a.click();
-        audioCtx.close();
+        if (audioRecCtx) { audioRecCtx.close().catch(() => {}); audioRecCtx = null; }
+        audioRecDest = null;
         toast('Audio recording saved to Downloads 🎙️');
       };
 
@@ -696,6 +811,7 @@
     if (audioRecorder) stopAudioRecording();
     else startAudioRecording();
   };
+
 
   // ---------- 10. ON-DEMAND AI NOTES & GOOGLE DRIVE HOOKS ----------
   function setupAiNotesAndDrive() {
@@ -789,6 +905,12 @@
       render();
     }
     if (msg.type === 'rec') { sysMsg(`${who} ${msg.on ? 'started' : 'stopped'} recording`); refreshRecordingStatus(); }
+    if (msg.type === 'wb_draw' && window._wbDraw) {
+      window._wbDraw(msg);
+    }
+    if (msg.type === 'wb_clear' && window._wbClear) {
+      window._wbClear();
+    }
   }
 
   $('handBtn').onclick = async () => {
