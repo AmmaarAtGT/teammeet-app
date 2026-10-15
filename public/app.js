@@ -363,6 +363,7 @@
         sysMsg(`${p.name || p.identity} left`);
         updateParticipantCount();
         render();
+      })
       .on(RoomEvent.TrackSubscribed, (track) => {
         if (audioRecorder && track && track.kind === Track.Kind.Audio) {
           connectTrackToAudioRecorder(track.mediaStreamTrack);
