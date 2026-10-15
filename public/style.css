@@ -27,9 +27,11 @@ button, input, select { font: inherit; color: inherit; }
 .preview { position: relative; aspect-ratio: 16/9; background: #000; border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; }
 .preview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 .preview-off { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
-.preview-controls { position: absolute; bottom: 12px; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; }
-.round { width: 46px; height: 46px; border-radius: 50%; border: 0; background: rgba(255,255,255,.18); cursor: pointer; display: grid; place-items: center; }
-.round.off { background: var(--danger); }
+.preview-controls { position: absolute; bottom: 12px; left: 0; right: 0; display: flex; justify-content: center; gap: 14px; z-index: 10; }
+.round { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
+.round:hover { background: rgba(30, 41, 59, 0.9); transform: translateY(-2px); border-color: rgba(255,255,255,.4); }
+.round.off { background: var(--danger); border-color: var(--danger); }
+.round svg { width: 20px; height: 20px; stroke: #ffffff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; display: block; }
 form label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
 form input, form select { display: block; width: 100%; margin-top: 6px; padding: 11px 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; outline: none; }
 form input:focus, form select:focus { border-color: var(--accent); }

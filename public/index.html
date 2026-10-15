@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>TeamMeet Pro — Modern Video Conferencing & AI Notes</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%233b82f6'/><text y='.75em' x='50%' text-anchor='middle' font-size='55' fill='white'>📹</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
@@ -16,13 +17,17 @@
       <div class="brand"><span class="logo">●</span> TeamMeet Pro</div>
       <p class="tagline">Enterprise Video Meetings • Unlimited Duration • AI Notes</p>
 
+      <div id="livekitWarningBanner" class="warning-banner hidden" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #fde68a; margin-bottom: 16px;">
+        ⚠️ <strong>LiveKit Cloud not connected!</strong> Set <code>LIVEKIT_URL</code>, <code>LIVEKIT_API_KEY</code> in Railway, or click the <a href="javascript:void(0)" id="linkOpenKeys" style="color:#60a5fa; text-decoration:underline; font-weight:600;">⚡ Floating Bot</a> to configure.
+      </div>
+
       <div class="preview">
         <video id="previewVideo" autoplay playsinline muted></video>
         <div id="previewOff" class="preview-off hidden">Camera is off</div>
         <div class="preview-controls">
-          <button id="pvMic" class="round on" title="Microphone"></button>
-          <button id="pvCam" class="round on" title="Camera"></button>
-          <button id="pvBg" class="round on" title="Background blur / Virtual background"></button>
+          <button id="pvMic" class="round on" title="Toggle Microphone" type="button"></button>
+          <button id="pvCam" class="round on" title="Toggle Camera" type="button"></button>
+          <button id="pvBg" class="round on" title="Virtual Backgrounds" type="button"></button>
         </div>
       </div>
 
@@ -35,12 +40,12 @@
           <input id="emailInput" type="email" required maxlength="80" placeholder="supraja@infotechlaunch.com" autocomplete="email" />
         </label>
         
-        <div class="team-rooms-selector" style="margin-bottom: 12px;">
-          <span style="display:block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #a1a1aa;">Choose Team Room:</span>
+        <div class="team-rooms-selector" style="margin-bottom: 14px;">
+          <span style="display:block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--muted);">Choose Team Room:</span>
           <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn-room-choice active" data-room="dev-room" style="flex: 1; padding: 6px 4px; font-size: 12px; background: #27272a; color: #fff; border: 1px solid #6366f1; border-radius: 6px; cursor: pointer;">💻 Devs (10)</button>
-            <button type="button" class="btn-room-choice" data-room="marketing" style="flex: 1; padding: 6px 4px; font-size: 12px; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46; border-radius: 6px; cursor: pointer;">📢 Marketing (10)</button>
-            <button type="button" class="btn-room-choice" data-room="general" style="flex: 1; padding: 6px 4px; font-size: 12px; background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46; border-radius: 6px; cursor: pointer;">🏢 General</button>
+            <button type="button" class="btn-room-choice active" data-room="dev-room" style="flex: 1; padding: 8px 6px; font-size: 12px; font-weight: 600; background: var(--panel-2); color: #fff; border: 1px solid var(--accent); border-radius: 8px; cursor: pointer;">💻 Devs</button>
+            <button type="button" class="btn-room-choice" data-room="marketing" style="flex: 1; padding: 8px 6px; font-size: 12px; font-weight: 600; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;">📢 Marketing</button>
+            <button type="button" class="btn-room-choice" data-room="general" style="flex: 1; padding: 8px 6px; font-size: 12px; font-weight: 600; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;">🏢 General</button>
           </div>
         </div>
 
@@ -48,12 +53,12 @@
           <input id="roomInput" required maxlength="64" placeholder="dev-room" />
         </label>
 
-        <div class="avatar-upload-box" style="margin-bottom: 12px;">
-          <span style="display:block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #a1a1aa;">Profile Photo / Avatar:</span>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div id="avatarThumbnail" style="width: 38px; height: 38px; border-radius: 50%; background: #3b82f6; display: grid; place-items: center; font-weight: 700; color: #fff; overflow: hidden; flex-shrink: 0;">S</div>
+        <div class="avatar-upload-box" style="margin-bottom: 14px;">
+          <label style="display:block; font-size: 13px; color: var(--muted); margin-bottom: 6px;">Profile Photo / Avatar (Optional)</label>
+          <div style="display: flex; align-items: center; gap: 12px; background: var(--panel-2); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line);">
+            <div id="avatarThumbnail" style="width: 40px; height: 40px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 16px; color: #fff; overflow: hidden; flex-shrink: 0;">👤</div>
             <input type="file" id="avatarFileInput" accept="image/*" style="display: none;" />
-            <button type="button" id="btnChooseAvatar" class="ghost" style="flex: 1; font-size: 12px; padding: 8px;">📷 Upload Photo</button>
+            <button type="button" id="btnChooseAvatar" class="ghost" style="flex: 1; font-size: 13px; padding: 8px 12px;">📷 Upload Photo</button>
           </div>
         </div>
 
@@ -63,10 +68,14 @@
 
         <div class="device-row">
           <label>Microphone
-            <select id="micSelect"></select>
+            <select id="micSelect">
+              <option value="">Default Microphone</option>
+            </select>
           </label>
           <label>Camera <span class="badge-hint" id="camStatusHint">(Plug-and-Play)</span>
-            <select id="camSelect"></select>
+            <select id="camSelect">
+              <option value="">Default Camera</option>
+            </select>
           </label>
         </div>
 

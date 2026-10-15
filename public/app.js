@@ -142,10 +142,33 @@
   document.addEventListener('click', unlockMobileAudio, { passive: true });
 
   // ---------- 2. HARDWARE DEVICE DETECTION (External Webcam Fix) ----------
+  // ---------- 2. HARDWARE DEVICE DETECTION (External Webcam Fix) ----------
   async function fillDevices() {
     const fill = async (kind, sel) => {
-      const list = await Room.getLocalDevices(kind).catch(() => []);
-      sel.innerHTML = list.map((d) => `<option value="${d.deviceId}">${escapeHtml(d.label || `${kind} (${d.deviceId.slice(0, 5)}...)`)}</option>`).join('');
+      let list = [];
+      try {
+        if (Room.getLocalDevices) {
+          list = await Room.getLocalDevices(kind);
+        } else if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+          const all = await navigator.mediaDevices.enumerateDevices();
+          list = all.filter((d) => d.kind === kind);
+        }
+      } catch (e) {
+        list = [];
+      }
+      const currentVal = sel.value;
+      if (list && list.length) {
+        sel.innerHTML = list.map((d, i) => {
+          const defaultLabel = kind === 'audioinput' ? `Microphone ${i + 1}` : `Camera ${i + 1}`;
+          const label = d.label || defaultLabel;
+          return `<option value="${d.deviceId}">${escapeHtml(label)}</option>`;
+        }).join('');
+        if (currentVal && list.some(d => d.deviceId === currentVal)) {
+          sel.value = currentVal;
+        }
+      } else {
+        sel.innerHTML = `<option value="">Default ${kind === 'audioinput' ? 'Microphone' : 'Camera'}</option>`;
+      }
     };
     await fill('audioinput', $('micSelect'));
     await fill('videoinput', $('camSelect'));
@@ -188,7 +211,12 @@
     try {
       config = await fetch('/api/config').then((r) => r.json());
       if (config.passcodeRequired) $('passLabel').classList.remove('hidden');
+      if (!config.livekitUrl || config.livekitUrl.includes('localhost') || config.livekitUrl.includes('127.0.0.1')) {
+        $('livekitWarningBanner')?.classList.remove('hidden');
+      }
     } catch (e) {}
+
+    $('linkOpenKeys')?.addEventListener('click', () => $('floatingBotBtn')?.click());
 
     const pathRoom = normalizeRoomSlug(location.pathname.replace(/^\//, ''));
     $('roomInput').value = pathRoom || store.get('tm_room') || 'dev-room';
@@ -199,7 +227,15 @@
     userAvatar = store.get('tm_avatar') || '';
     if (userAvatar && $('avatarThumbnail')) {
       $('avatarThumbnail').innerHTML = `<img src="${userAvatar}" style="width:100%; height:100%; object-fit:cover;" />`;
+    } else if ($('nameInput').value && $('avatarThumbnail')) {
+      $('avatarThumbnail').textContent = initials($('nameInput').value) || '👤';
     }
+
+    $('nameInput')?.addEventListener('input', (e) => {
+      if (!userAvatar && $('avatarThumbnail')) {
+        $('avatarThumbnail').textContent = initials(e.target.value) || '👤';
+      }
+    });
 
     // Avatar upload handler
     $('btnChooseAvatar')?.addEventListener('click', () => $('avatarFileInput').click());
@@ -222,15 +258,15 @@
     // 3 Dedicated Team Room Switchers
     document.querySelectorAll('.btn-room-choice').forEach((btn) => {
       if (btn.dataset.room === $('roomInput').value) {
-        btn.style.borderColor = '#6366f1';
+        btn.style.borderColor = 'var(--accent)';
         btn.style.color = '#fff';
       }
       btn.onclick = () => {
         document.querySelectorAll('.btn-room-choice').forEach((b) => {
-          b.style.borderColor = '#3f3f46';
-          b.style.color = '#a1a1aa';
+          b.style.borderColor = 'var(--line)';
+          b.style.color = 'var(--muted)';
         });
-        btn.style.borderColor = '#6366f1';
+        btn.style.borderColor = 'var(--accent)';
         btn.style.color = '#fff';
         $('roomInput').value = btn.dataset.room;
       };
@@ -273,15 +309,31 @@
     previewTracks.forEach((t) => t.stop());
     previewTracks = [];
     try {
+      if (!camOn && !micOn) {
+        $('previewOff').textContent = 'Camera & Microphone are muted';
+        $('previewOff').classList.remove('hidden');
+        return;
+      }
       previewTracks = await createLocalTracks({
-        audio: { deviceId: $('micSelect').value || undefined },
+        audio: micOn ? { deviceId: $('micSelect').value || undefined } : false,
         video: camOn ? { deviceId: $('camSelect').value || undefined } : false,
       });
       const v = previewTracks.find((t) => t.kind === 'video');
-      if (v) { await applyBackground(v); v.attach($('previewVideo')); }
-      $('previewOff').classList.toggle('hidden', !!v);
+      if (v) {
+        if (bgChoice && bgChoice.type !== 'none') {
+          await applyBackground(v).catch(() => {});
+        }
+        v.attach($('previewVideo'));
+        $('previewVideo').play().catch(() => {});
+        $('previewOff').classList.add('hidden');
+      } else {
+        $('previewOff').textContent = 'Camera is off';
+        $('previewOff').classList.remove('hidden');
+      }
+      await fillDevices();
     } catch (e) {
-      $('previewOff').textContent = 'Camera/mic blocked — allow access in your browser';
+      console.warn('Preview error:', e);
+      $('previewOff').textContent = 'Camera/mic permission needed — allow access in browser';
       $('previewOff').classList.remove('hidden');
     }
   }
