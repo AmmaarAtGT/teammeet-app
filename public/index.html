@@ -3,115 +3,169 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>TeamMeet Pro — Modern Video Conferencing & AI Notes</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%233b82f6'/><text y='.75em' x='50%' text-anchor='middle' font-size='55' fill='white'>📹</text></svg>" />
+  <title>TeamMeet — Google Meet Enterprise Video & AI Notes</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%231a73e8'/><path d='M30 35 L55 50 L30 65 Z' fill='white'/><rect x='58' y='38' width='16' height='24' rx='4' fill='white'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%233b82f6'/></svg>" />
 </head>
 <body>
-  <!-- ============ PRE-JOIN LOBBY ============ -->
-  <section id="lobby" class="lobby">
-    <div class="lobby-card">
-      <div class="brand"><span class="logo">●</span> TeamMeet Pro</div>
-      <p class="tagline">Enterprise Video Meetings • Unlimited Duration • AI Notes</p>
-
-      <div id="livekitWarningBanner" class="warning-banner hidden" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #fde68a; margin-bottom: 16px;">
-        ⚠️ <strong>LiveKit Cloud not connected!</strong> Set <code>LIVEKIT_URL</code>, <code>LIVEKIT_API_KEY</code> in Railway, or click the <a href="javascript:void(0)" id="linkOpenKeys" style="color:#60a5fa; text-decoration:underline; font-weight:600;">⚡ Floating Bot</a> to configure.
+  <!-- ============ GOOGLE MEET LOBBY / GREENROOM ============ -->
+  <section id="lobby" class="meet-lobby">
+    <!-- Top Google Meet Branding Bar -->
+    <header class="lobby-topbar">
+      <div class="brand">
+        <svg class="meet-brand-icon" viewBox="0 0 48 48" width="36" height="36" aria-hidden="true">
+          <path fill="#00832d" d="M37 24l-8-6.5v13z"/>
+          <path fill="#0066da" d="M11 13h18c1.1 0 2 .9 2 2v18c0 1.1-.9 2-2 2H11c-1.1 0-2-.9-2-2V15c0-1.1.9-2 2-2z"/>
+          <path fill="#e94235" d="M11 13l9 7.5L29 13z"/>
+          <path fill="#2684fc" d="M11 35l9-7.5L29 35z"/>
+          <path fill="#00ac47" d="M29 13v22l8-7.5z"/>
+          <path fill="#ffba00" d="M9 15v18l9-9z"/>
+        </svg>
+        <span class="brand-title">TeamMeet</span>
+        <span class="brand-tag">Enterprise</span>
       </div>
-
-      <div class="preview">
-        <video id="previewVideo" autoplay playsinline muted></video>
-        <div id="previewOff" class="preview-off hidden">Camera is off</div>
-        <div class="preview-controls">
-          <button id="pvMic" class="round on" title="Toggle Microphone" type="button"></button>
-          <button id="pvCam" class="round on" title="Toggle Camera" type="button"></button>
-          <button id="pvBg" class="round on" title="Virtual Backgrounds" type="button"></button>
-        </div>
+      <div class="lobby-header-right">
+        <span id="lobbyClock" class="lobby-clock">Ready to connect</span>
       </div>
+    </header>
 
-      <form id="joinForm">
-        <label>Your Name
-          <input id="nameInput" required maxlength="48" placeholder="e.g. Supraja" autocomplete="name" />
-        </label>
+    <!-- Split 2-Column Greenroom Layout -->
+    <div class="lobby-container">
+      <!-- LEFT: 16:9 STAGE PREVIEW CARD -->
+      <div class="lobby-stage-col">
+        <div class="preview-card">
+          <video id="previewVideo" autoplay playsinline muted></video>
+          
+          <div id="previewOff" class="preview-off hidden">
+            <div class="preview-avatar-circle" id="previewAvatarCircle">👤</div>
+            <p class="preview-off-text">Camera is off</p>
+          </div>
 
-        <label>Work Email <span class="badge-hint">(Notes & Drive recording will be sent here)</span>
-          <input id="emailInput" type="email" required maxlength="80" placeholder="supraja@infotechlaunch.com" autocomplete="email" />
-        </label>
-        
-        <div class="team-rooms-selector" style="margin-bottom: 14px;">
-          <span style="display:block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--muted);">Choose Team Room:</span>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn-room-choice active" data-room="dev-room" style="flex: 1; padding: 8px 6px; font-size: 12px; font-weight: 600; background: var(--panel-2); color: #fff; border: 1px solid var(--accent); border-radius: 8px; cursor: pointer;">💻 Devs</button>
-            <button type="button" class="btn-room-choice" data-room="marketing" style="flex: 1; padding: 8px 6px; font-size: 12px; font-weight: 600; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;">📢 Marketing</button>
-            <button type="button" class="btn-room-choice" data-room="general" style="flex: 1; padding: 8px 6px; font-size: 12px; font-weight: 600; background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); border-radius: 8px; cursor: pointer;">🏢 General</button>
+          <!-- Real-time Mic Wave Audio Meter -->
+          <div class="audio-wave-meter" id="lobbyAudioMeter" title="Microphone volume">
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+          </div>
+
+          <!-- Floating Media Pills -->
+          <div class="preview-controls">
+            <button id="pvMic" class="round on" title="Toggle microphone (Ctrl+D)" type="button"></button>
+            <button id="pvCam" class="round on" title="Toggle camera (Ctrl+E)" type="button"></button>
+            <button id="pvBg" class="round on" title="Apply visual effects & background" type="button"></button>
           </div>
         </div>
+        <p class="preview-footnote">Check your audio & video before entering the call</p>
+      </div>
 
-        <label>Room Name
-          <input id="roomInput" required maxlength="64" placeholder="dev-room" />
-        </label>
+      <!-- RIGHT: READY TO JOIN FORM CARD -->
+      <div class="lobby-form-col">
+        <div class="join-card">
+          <h1 class="join-title">Ready to join?</h1>
+          <div id="lobbyPresence" class="lobby-presence">No one else is in this room yet</div>
 
-        <div class="avatar-upload-box" style="margin-bottom: 14px;">
-          <label style="display:block; font-size: 13px; color: var(--muted); margin-bottom: 6px;">Profile Photo / Avatar (Optional)</label>
-          <div style="display: flex; align-items: center; gap: 12px; background: var(--panel-2); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line);">
-            <div id="avatarThumbnail" style="width: 40px; height: 40px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 16px; color: #fff; overflow: hidden; flex-shrink: 0;">👤</div>
-            <input type="file" id="avatarFileInput" accept="image/*" style="display: none;" />
-            <button type="button" id="btnChooseAvatar" class="ghost" style="flex: 1; font-size: 13px; padding: 8px 12px;">📷 Upload Photo</button>
+          <div id="livekitWarningBanner" class="warning-banner hidden">
+            ⚠️ <strong>LiveKit Cloud not connected!</strong> Set credentials in Railway or configure via <a href="javascript:void(0)" id="linkOpenKeys">⚡ Key Manager</a>.
           </div>
+
+          <form id="joinForm" class="join-form">
+            <!-- Room Quick Choice Chips -->
+            <div class="team-rooms-wrapper">
+              <span class="field-label">Choose Team Room:</span>
+              <div class="room-chips">
+                <button type="button" class="btn-room-choice active" data-room="dev-room">💻 Devs</button>
+                <button type="button" class="btn-room-choice" data-room="marketing">📢 Marketing</button>
+                <button type="button" class="btn-room-choice" data-room="general">🏢 General</button>
+              </div>
+            </div>
+
+            <!-- Form fields -->
+            <div class="field-group">
+              <label for="nameInput">Your name</label>
+              <input id="nameInput" required maxlength="48" placeholder="e.g. Supraja" autocomplete="name" />
+            </div>
+
+            <div class="field-group">
+              <label for="emailInput">Work email <span class="badge-hint">(AI Notes & Drive recordings sent here)</span></label>
+              <input id="emailInput" type="email" required maxlength="80" placeholder="supraja@infotechlaunch.com" autocomplete="email" />
+            </div>
+
+            <div class="field-group">
+              <label for="roomInput">Room name</label>
+              <input id="roomInput" required maxlength="64" placeholder="dev-room" />
+            </div>
+
+            <!-- Profile Photo Upload -->
+            <div class="avatar-row">
+              <div id="avatarThumbnail" class="avatar-thumb">👤</div>
+              <div class="avatar-meta">
+                <span class="avatar-label">Profile Photo (Optional)</span>
+                <input type="file" id="avatarFileInput" accept="image/*" style="display: none;" />
+                <button type="button" id="btnChooseAvatar" class="btn-avatar-upload">📷 Upload Photo</button>
+              </div>
+            </div>
+
+            <div id="passLabel" class="field-group hidden">
+              <label for="passInput">Meeting Passcode</label>
+              <input id="passInput" type="password" autocomplete="current-password" />
+            </div>
+
+            <!-- Hardware Selectors -->
+            <div class="device-grid">
+              <div class="field-group">
+                <label for="micSelect">Microphone</label>
+                <select id="micSelect">
+                  <option value="">Default Microphone</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="camSelect">Camera <span class="badge-hint" id="camStatusHint">(Plug-and-play)</span></label>
+                <select id="camSelect">
+                  <option value="">Default Camera</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="meet-btn-join" id="joinBtn">Join now</button>
+            <p id="lobbyError" class="error"></p>
+          </form>
         </div>
-
-        <label id="passLabel" class="hidden">Team Passcode
-          <input id="passInput" type="password" autocomplete="current-password" />
-        </label>
-
-        <div class="device-row">
-          <label>Microphone
-            <select id="micSelect">
-              <option value="">Default Microphone</option>
-            </select>
-          </label>
-          <label>Camera <span class="badge-hint" id="camStatusHint">(Plug-and-Play)</span>
-            <select id="camSelect">
-              <option value="">Default Camera</option>
-            </select>
-          </label>
-        </div>
-
-        <button type="submit" class="primary" id="joinBtn">Join Meeting Now</button>
-        <p id="lobbyError" class="error"></p>
-      </form>
+      </div>
     </div>
   </section>
 
-  <!-- ============ MEETING ROOM ============ -->
+  <!-- ============ GOOGLE MEET ACTIVE MEETING ROOM ============ -->
   <section id="meeting" class="meeting hidden">
-    <!-- TOP CONTROL BAR -->
-    <header class="topbar">
-      <div class="room-meta">
-        <span class="logo">●</span>
-        <strong id="roomTitle">Meeting Room</strong>
-        <span id="clock" class="muted">00:00:00</span>
+    <!-- Minimal Top Meta Header -->
+    <header class="meet-topbar">
+      <div class="top-left">
+        <span class="room-indicator">●</span>
+        <h2 id="roomTitle" class="room-name">dev-room</h2>
+        <span id="clock" class="meet-timer">00:00:00</span>
         <span id="recBadge" class="rec-badge hidden">● REC</span>
         <span id="localRecBadge" class="rec-badge local hidden">● Screen Rec</span>
-        <span id="audioRecBadge" class="rec-badge audio hidden" style="background:#10b981; color:#fff;">● Audio Rec</span>
+        <span id="audioRecBadge" class="rec-badge audio hidden">● Audio Rec</span>
         <span id="speakingNow" class="speaking-now hidden"></span>
       </div>
 
-      <div class="top-actions">
-        <!-- ON-DEMAND AI NOTES TOGGLE (Turn ON/OFF anytime) -->
-        <button id="btnAiNotesToggle" class="ghost action-btn" title="Toggle AI Notes capturing during important discussions">
-          📝 <span id="lblAiNotes">AI Notes: ON</span>
+      <div class="top-right">
+        <!-- ON-DEMAND AI NOTES TOGGLE -->
+        <button id="btnAiNotesToggle" class="chip-btn" title="Toggle AI Notes capturing during important discussions">
+          <span class="dot-ai">●</span> <span id="lblAiNotes">AI Notes: ON</span>
         </button>
 
-        <!-- GOOGLE DRIVE SETTINGS -->
-        <button id="btnDriveFolder" class="ghost action-btn" title="Google Drive Folder Storage">
-          📁 Drive
+        <!-- GOOGLE DRIVE SYNC BUTTON -->
+        <button id="btnDriveFolder" class="chip-btn" title="Google Drive Folder Storage">
+          <span class="ic-drive">📁</span> Drive
         </button>
 
-        <button id="copyLinkBtn" class="ghost">Copy Invite Link</button>
-        <span id="countBadge" class="count" title="Active Participants in Room">1</span>
+        <!-- COPY LINK BUTTON -->
+        <button id="copyLinkBtn" class="chip-btn" title="Copy meeting invite link">
+          <span>🔗</span> Copy link
+        </button>
       </div>
     </header>
 
@@ -120,7 +174,7 @@
       <span>🔊 Tap anywhere on screen to enable meeting audio</span>
     </div>
 
-    <!-- MAIN STAGE & TILES -->
+    <!-- MAIN VIDEO STAGE & TILES -->
     <main class="stage">
       <div id="grid" class="grid"></div>
 
@@ -131,40 +185,40 @@
           <button data-tab="people" class="tab">People</button>
           <button data-tab="board" class="tab">Whiteboard</button>
           <button data-tab="recs" class="tab">Recordings</button>
-          <button id="closeSide" class="ghost x" title="Close Side Panel">✕</button>
+          <button id="closeSide" class="btn-icon-close" title="Close Side Panel">✕</button>
         </div>
 
         <!-- TAB: CHAT -->
         <div id="tab-chat" class="tab-body">
           <div id="chatLog" class="chat-log"></div>
           <form id="chatForm" class="chat-form">
-            <input id="chatInput" placeholder="Message everyone..." autocomplete="off" />
-            <button class="primary">Send</button>
+            <input id="chatInput" placeholder="Send a message to everyone..." autocomplete="off" />
+            <button type="submit" class="chat-send-btn">Send</button>
           </form>
         </div>
 
-        <!-- TAB: ZOOM-STYLE PEOPLE LIST (With Search & Status) -->
+        <!-- TAB: PEOPLE LIST (Search & Presence) -->
         <div id="tab-people" class="tab-body hidden">
-          <div style="padding: 10px 10px 0;">
-            <input id="peopleSearch" placeholder="🔍 Search participants..." style="width: 100%; padding: 8px 10px; background: #20242d; border: 1px solid #2b303b; border-radius: 8px; color: #fff; font-size: 13px;" />
+          <div class="people-search-box">
+            <input id="peopleSearch" placeholder="🔍 Search participants..." />
           </div>
           <ul id="peopleList" class="people"></ul>
         </div>
 
-        <!-- TAB: COLLABORATIVE WHITEBOARD (With Save as File PNG) -->
+        <!-- TAB: COLLABORATIVE WHITEBOARD -->
         <div id="tab-board" class="tab-body hidden">
-          <div class="board-toolbar" style="display: flex; align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid #2b303b;">
-            <input type="color" id="boardColor" value="#3b82f6" title="Pen Color" style="width: 28px; height: 28px; border: 0; background: transparent; cursor: pointer;" />
-            <select id="boardSize" style="padding: 4px 8px; background: #20242d; border: 1px solid #2b303b; border-radius: 6px; color: #fff; font-size: 12px;">
+          <div class="board-toolbar">
+            <input type="color" id="boardColor" value="#3b82f6" title="Pen Color" />
+            <select id="boardSize">
               <option value="2">Thin Pen</option>
               <option value="4" selected>Medium Pen</option>
               <option value="8">Thick Pen</option>
             </select>
-            <button id="boardClear" class="ghost" style="padding: 4px 8px; font-size: 12px;">Clear</button>
-            <button id="boardSave" class="primary" style="padding: 4px 10px; font-size: 12px; margin-left: auto;">💾 Save as File</button>
+            <button id="boardClear" class="btn-toolbar">Clear</button>
+            <button id="boardSave" class="btn-toolbar primary-save">💾 Save PNG</button>
           </div>
-          <div style="flex: 1; position: relative; background: #12141a;">
-            <canvas id="whiteboardCanvas" style="position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair;"></canvas>
+          <div class="board-canvas-wrapper">
+            <canvas id="whiteboardCanvas"></canvas>
           </div>
         </div>
 
@@ -175,25 +229,86 @@
       </aside>
     </main>
 
-    <!-- IN-MEETING BOTTOM CONTROL BAR -->
-    <footer class="controls">
-      <button id="micBtn" class="ctl" title="Mute / unmute (Ctrl+D)"><span class="ic"></span><span class="lbl">Mic</span></button>
-      <button id="camBtn" class="ctl" title="Camera on / off (Ctrl+E)"><span class="ic"></span><span class="lbl">Camera</span></button>
-      <button id="shareBtn" class="ctl" title="Share screen"><span class="ic"></span><span class="lbl">Share</span></button>
-      <button id="bgBtn" class="ctl" title="Virtual background & blur"><span class="ic"></span><span class="lbl">Background</span></button>
-      <button id="recBtn" class="ctl" title="Record full meeting MP4 on server"><span class="ic"></span><span class="lbl">Server Rec</span></button>
-      <button id="audioRecBtn" class="ctl" title="High-fidelity pure Audio Recording"><span class="ic"></span><span class="lbl">Audio Rec</span></button>
-      <button id="localRecBtn" class="ctl" title="Record screen directly to computer"><span class="ic"></span><span class="lbl">Screen Rec</span></button>
-      <button id="handBtn" class="ctl" title="Raise hand"><span class="ic"></span><span class="lbl">Hand</span></button>
-      <button id="chatBtn" class="ctl" title="Chat, whiteboard & people"><span class="ic"></span><span class="lbl">Panel</span><span id="unread" class="dot hidden"></span></button>
-      <button id="leaveBtn" class="ctl leave" title="Leave meeting"><span class="ic"></span><span class="lbl">Leave</span></button>
+    <!-- GOOGLE MEET SIGNATURE 3-ZONE BOTTOM CONTROL BAR -->
+    <footer class="meet-bottom-bar" id="meetBottomBar">
+      <!-- Zone 1: Left (Meeting info & clock) -->
+      <div class="bar-zone bar-left">
+        <span class="bar-room-name" id="bottomRoomName">dev-room</span>
+        <span class="bar-divider">|</span>
+        <span class="bar-time" id="bottomClock">12:00 PM</span>
+      </div>
+
+      <!-- Zone 2: Center (Circular Google Meet 48px control cluster) -->
+      <div class="bar-zone bar-center">
+        <button id="micBtn" class="meet-btn-circle" title="Turn off microphone (Ctrl+D)" aria-label="Microphone">
+          <span class="ic"></span>
+          <span class="lbl hidden">Mic</span>
+        </button>
+        <button id="camBtn" class="meet-btn-circle" title="Turn off camera (Ctrl+E)" aria-label="Camera">
+          <span class="ic"></span>
+          <span class="lbl hidden">Camera</span>
+        </button>
+        <button id="bgBtn" class="meet-btn-circle" title="Apply visual effects" aria-label="Background Effects">
+          <span class="ic"></span>
+          <span class="lbl hidden">Background</span>
+        </button>
+        <button id="shareBtn" class="meet-btn-circle" title="Present now" aria-label="Share Screen">
+          <span class="ic"></span>
+          <span class="lbl hidden">Share</span>
+        </button>
+        <button id="audioRecBtn" class="meet-btn-circle" title="High-fidelity pure audio recording" aria-label="Audio Rec">
+          <span class="ic"></span>
+          <span class="lbl hidden">Audio Rec</span>
+        </button>
+        <button id="localRecBtn" class="meet-btn-circle" title="Record screen directly to computer" aria-label="Screen Rec">
+          <span class="ic"></span>
+          <span class="lbl hidden">Screen Rec</span>
+        </button>
+        <button id="recBtn" class="meet-btn-circle" title="Server Cloud MP4 recording" aria-label="Server Rec">
+          <span class="ic"></span>
+          <span class="lbl hidden">Server Rec</span>
+        </button>
+        <button id="handBtn" class="meet-btn-circle" title="Raise hand" aria-label="Raise Hand">
+          <span class="ic"></span>
+          <span class="lbl hidden">Hand</span>
+        </button>
+        <button id="boardBtn" class="meet-btn-circle" title="Collaborative Whiteboard" aria-label="Whiteboard">
+          <span class="ic"></span>
+          <span class="lbl hidden">Whiteboard</span>
+        </button>
+        <button id="leaveBtn" class="meet-btn-leave" title="Leave call" aria-label="Leave call">
+          <span class="ic"></span>
+          <span class="lbl hidden">Leave</span>
+        </button>
+      </div>
+
+      <!-- Zone 3: Right (Side panel drawer toggles) -->
+      <div class="bar-zone bar-right">
+        <button id="infoBtn" class="meet-btn-icon" title="Meeting details" aria-label="Meeting details">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </button>
+        <button id="peopleBtn" class="meet-btn-icon" title="People" aria-label="People">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span id="countBadge" class="meet-count-badge">1</span>
+        </button>
+        <button id="chatBtn" class="meet-btn-icon" title="Chat with everyone" aria-label="Chat">
+          <span class="ic"></span>
+          <span id="unread" class="meet-unread-dot hidden"></span>
+        </button>
+        <button id="activitiesBtn" class="meet-btn-icon" title="Activities & Recordings" aria-label="Activities">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        </button>
+      </div>
     </footer>
   </section>
 
-  <!-- PROFESSIONAL DYNAMIC VIRTUAL BACKGROUND PANEL -->
+  <!-- PROFESSIONAL VIRTUAL BACKGROUND PANEL -->
   <div id="bgPanel" class="bg-panel hidden" role="dialog" aria-label="Virtual Backgrounds">
-    <div class="bg-head"><strong>Virtual Backgrounds & Effects</strong><button id="bgClose" class="ghost x" title="Close">✕</button></div>
-    <p class="muted small">Enhances your presence. Studio-grade privacy backgrounds.</p>
+    <div class="bg-head">
+      <strong>Visual effects</strong>
+      <button id="bgClose" class="btn-icon-close" title="Close">✕</button>
+    </div>
+    <p class="muted small">Background blur and studio-grade environments.</p>
     
     <div class="bg-section">Studio Focus Effects</div>
     <div class="bg-grid" id="bgEffects"></div>
@@ -202,9 +317,9 @@
     <div class="bg-grid" id="bgScenes"></div>
 
     <div class="bg-section">Custom Image Upload</div>
-    <label class="bg-custom-upload" style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+    <label class="bg-custom-upload">
       <input type="file" id="bgCustomImage" accept="image/*" style="display: none;" />
-      <button type="button" id="btnUploadBg" class="ghost" style="width: 100%; font-size: 13px;">🖼️ Upload Custom Office Image</button>
+      <button type="button" id="btnUploadBg" class="btn-upload-bg">🖼️ Upload Custom Image</button>
     </label>
     <p id="bgNote" class="muted small" style="margin-top: 8px;"></p>
   </div>
@@ -218,28 +333,28 @@
     <div class="modal-card">
       <div class="modal-head">
         <h3>⚡ Room Health & Dynamic Key Rotation</h3>
-        <button id="closeModalKeys" class="ghost x">✕</button>
+        <button id="closeModalKeys" class="btn-icon-close">✕</button>
       </div>
-      <div class="modal-body" style="padding: 16px; font-size: 13px;">
+      <div class="modal-body">
         <p class="muted" style="margin-bottom: 12px;">Update LiveKit or Google Drive credentials on-the-fly without server restarts:</p>
         
-        <label style="display:block; margin-bottom: 10px;">LiveKit Cloud WebSocket URL:
-          <input id="keyLivekitUrl" placeholder="wss://teammeet-xxxx.livekit.cloud" style="width: 100%; padding: 8px; background: #20242d; border: 1px solid #2b303b; border-radius: 6px; color: #fff; margin-top: 4px;" />
+        <label class="field-label">LiveKit Cloud WebSocket URL:
+          <input id="keyLivekitUrl" placeholder="wss://teammeet-xxxx.livekit.cloud" />
         </label>
 
-        <label style="display:block; margin-bottom: 10px;">LiveKit API Key:
-          <input id="keyLivekitKey" placeholder="APIxxxxxx" style="width: 100%; padding: 8px; background: #20242d; border: 1px solid #2b303b; border-radius: 6px; color: #fff; margin-top: 4px;" />
+        <label class="field-label">LiveKit API Key:
+          <input id="keyLivekitKey" placeholder="APIxxxxxx" />
         </label>
 
-        <label style="display:block; margin-bottom: 10px;">LiveKit API Secret:
-          <input id="keyLivekitSecret" type="password" placeholder="secretxxxxxx" style="width: 100%; padding: 8px; background: #20242d; border: 1px solid #2b303b; border-radius: 6px; color: #fff; margin-top: 4px;" />
+        <label class="field-label">LiveKit API Secret:
+          <input id="keyLivekitSecret" type="password" placeholder="secretxxxxxx" />
         </label>
 
-        <label style="display:block; margin-bottom: 10px;">Google Drive Folder ID / Link:
-          <input id="keyDriveFolder" placeholder="https://drive.google.com/drive/folders/1AbCd..." style="width: 100%; padding: 8px; background: #20242d; border: 1px solid #2b303b; border-radius: 6px; color: #fff; margin-top: 4px;" />
+        <label class="field-label">Google Drive Folder ID / Link:
+          <input id="keyDriveFolder" placeholder="https://drive.google.com/drive/folders/1AbCd..." />
         </label>
 
-        <button id="btnSaveDynamicKeys" class="primary" style="width: 100%; margin-top: 8px;">Save & Apply Keys Dynamically</button>
+        <button id="btnSaveDynamicKeys" class="meet-btn-primary" style="width: 100%; margin-top: 12px;">Save & Apply Keys</button>
       </div>
     </div>
   </div>

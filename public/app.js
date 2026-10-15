@@ -8,16 +8,17 @@
   const I = {
     mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>',
     micOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M9 9v1a3 3 0 0 0 5.1 2.1M15 9.3V5a3 3 0 0 0-5.9-.8M19 10a7 7 0 0 1-1.2 3.9M5 10a7 7 0 0 0 11 5.7M12 17v5"/></svg>',
-    cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></svg>',
-    camOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M16 16H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2m4 0h4a2 2 0 0 1 2 2v4l6-3v10"/></svg>',
-    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4M12 13V8m-3 3l3-3 3 3"/></svg>',
-    rec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>',
-    audioRec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>',
-    screenRec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><circle cx="12" cy="10.5" r="3" fill="currentColor"/><path d="M8 21h8"/></svg>',
+    cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>',
+    camOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1l22 22M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m3-3h6a2 2 0 0 1 2 2v2l7-5v14l-4-2.86"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polyline points="16 9 12 5 8 9"/><line x1="12" y1="5" x2="12" y2="13"/></svg>',
+    rec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/><circle cx="12" cy="14" r="2.5" fill="#ea4335"/></svg>',
+    audioRec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/><circle cx="19" cy="4" r="3" fill="#ea4335"/></svg>',
+    screenRec: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><polyline points="8 21 16 21 12 17"/><circle cx="12" cy="10" r="3" fill="#ea4335"/></svg>',
     hand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a8 8 0 0 0 16 0v-2a2 2 0 0 0-4 0"/></svg>',
     chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
-    bg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="9" r="3.5"/><path d="M5 20c1.2-3.3 3.8-5 7-5s5.8 1.7 7 5"/><rect x="2" y="2" width="20" height="20" rx="3" stroke-dasharray="3 3"/></svg>',
-    leave: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" transform="rotate(135 12 12)"/></svg>',
+    bg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 5 5.6.8-4 4 1 5.6-5-2.6-5 2.6 1-5.6-4-4 5.6-.8z"/></svg>',
+    board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h20v14H2z"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="7" y1="10" x2="17" y2="10"/></svg>',
+    leave: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.39.39.39 1.02 0 1.41l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>',
   };
   const setIcon = (btn, svg) => { if (btn && btn.querySelector('.ic')) btn.querySelector('.ic').innerHTML = svg; };
 
@@ -218,6 +219,17 @@
 
     $('linkOpenKeys')?.addEventListener('click', () => $('floatingBotBtn')?.click());
 
+    // Google Meet Lobby Clock
+    function updateLobbyClock() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const dateStr = now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      const el = $('lobbyClock');
+      if (el) el.textContent = `${timeStr} • ${dateStr}`;
+    }
+    updateLobbyClock();
+    setInterval(updateLobbyClock, 1000);
+
     const pathRoom = normalizeRoomSlug(location.pathname.replace(/^\//, ''));
     $('roomInput').value = pathRoom || store.get('tm_room') || 'dev-room';
     $('nameInput').value = store.get('tm_name') || '';
@@ -225,16 +237,20 @@
     $('passInput').value = store.get('tm_pass') || '';
 
     userAvatar = store.get('tm_avatar') || '';
-    if (userAvatar && $('avatarThumbnail')) {
-      $('avatarThumbnail').innerHTML = `<img src="${userAvatar}" style="width:100%; height:100%; object-fit:cover;" />`;
-    } else if ($('nameInput').value && $('avatarThumbnail')) {
-      $('avatarThumbnail').textContent = initials($('nameInput').value) || '👤';
-    }
-
-    $('nameInput')?.addEventListener('input', (e) => {
-      if (!userAvatar && $('avatarThumbnail')) {
-        $('avatarThumbnail').textContent = initials(e.target.value) || '👤';
+    function updateAvatarUI() {
+      const initText = initials($('nameInput').value) || '👤';
+      if (userAvatar) {
+        if ($('avatarThumbnail')) $('avatarThumbnail').innerHTML = `<img src="${userAvatar}" style="width:100%; height:100%; object-fit:cover;" />`;
+        if ($('previewAvatarCircle')) $('previewAvatarCircle').innerHTML = `<img src="${userAvatar}" />`;
+      } else {
+        if ($('avatarThumbnail')) $('avatarThumbnail').textContent = initText;
+        if ($('previewAvatarCircle')) $('previewAvatarCircle').textContent = initText;
       }
+    }
+    updateAvatarUI();
+
+    $('nameInput')?.addEventListener('input', () => {
+      if (!userAvatar) updateAvatarUI();
     });
 
     // Avatar upload handler
@@ -246,9 +262,7 @@
         reader.onload = (ev) => {
           userAvatar = ev.target.result;
           store.set('tm_avatar', userAvatar);
-          if ($('avatarThumbnail')) {
-            $('avatarThumbnail').innerHTML = `<img src="${userAvatar}" style="width:100%; height:100%; object-fit:cover;" />`;
-          }
+          updateAvatarUI();
           toast('Profile photo saved!');
         };
         reader.readAsDataURL(file);
@@ -258,23 +272,21 @@
     // 3 Dedicated Team Room Switchers
     document.querySelectorAll('.btn-room-choice').forEach((btn) => {
       if (btn.dataset.room === $('roomInput').value) {
-        btn.style.borderColor = 'var(--accent)';
-        btn.style.color = '#fff';
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
       }
       btn.onclick = () => {
-        document.querySelectorAll('.btn-room-choice').forEach((b) => {
-          b.style.borderColor = 'var(--line)';
-          b.style.color = 'var(--muted)';
-        });
-        btn.style.borderColor = 'var(--accent)';
-        btn.style.color = '#fff';
+        document.querySelectorAll('.btn-room-choice').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
         $('roomInput').value = btn.dataset.room;
+        fetchActiveRooms();
       };
     });
 
     setIcon($('micBtn'), I.mic); setIcon($('camBtn'), I.cam); setIcon($('shareBtn'), I.share);
     setIcon($('recBtn'), I.rec); setIcon($('audioRecBtn'), I.audioRec); setIcon($('localRecBtn'), I.screenRec);
-    setIcon($('handBtn'), I.hand); setIcon($('chatBtn'), I.chat); setIcon($('leaveBtn'), I.leave);
+    setIcon($('handBtn'), I.hand); setIcon($('chatBtn'), I.chat); setIcon($('boardBtn'), I.board); setIcon($('leaveBtn'), I.leave);
     $('pvMic').innerHTML = I.mic; $('pvCam').innerHTML = I.cam; $('pvBg').innerHTML = I.bg;
     setIcon($('bgBtn'), I.bg);
 
@@ -299,10 +311,70 @@
         const baseName = btn.textContent.split('(')[0].trim();
         btn.innerHTML = `${baseName} (${count ? count + ' live' : 'join'})`;
         if (count > 0) {
-          btn.style.borderColor = '#10b981';
+          btn.style.borderColor = '#34a853';
         }
       });
+      const currentRoom = $('roomInput').value;
+      const curCount = roomCounts.get(currentRoom) || 0;
+      if ($('lobbyPresence')) {
+        $('lobbyPresence').textContent = curCount > 0
+          ? `${curCount} participant${curCount > 1 ? 's' : ''} currently in this room`
+          : 'No one else is in this room yet';
+      }
     } catch (e) {}
+  }
+
+  // Google Meet Real-Time Web Audio Visualizer
+  let lobbyAudioCtx = null;
+  let lobbyAudioAnalyser = null;
+  let lobbyAudioSource = null;
+  let lobbyWaveAnim = null;
+
+  function setupLobbyAudioVisualizer(mediaStreamTrack) {
+    try {
+      if (!mediaStreamTrack) return;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!lobbyAudioCtx) lobbyAudioCtx = new AudioCtx();
+      if (lobbyAudioCtx.state === 'suspended') lobbyAudioCtx.resume().catch(() => {});
+
+      if (lobbyAudioSource) {
+        try { lobbyAudioSource.disconnect(); } catch (e) {}
+      }
+      const stream = new MediaStream([mediaStreamTrack]);
+      lobbyAudioSource = lobbyAudioCtx.createMediaStreamSource(stream);
+      lobbyAudioAnalyser = lobbyAudioCtx.createAnalyser();
+      lobbyAudioAnalyser.fftSize = 64;
+      lobbyAudioSource.connect(lobbyAudioAnalyser);
+
+      const dataArray = new Uint8Array(lobbyAudioAnalyser.frequencyBinCount);
+      const bars = document.querySelectorAll('#lobbyAudioMeter .wave-bar');
+      if (!bars.length) return;
+
+      function drawWave() {
+        if (!micOn || !lobbyAudioAnalyser) {
+          bars.forEach((b) => (b.style.height = '4px'));
+          return;
+        }
+        lobbyWaveAnim = requestAnimationFrame(drawWave);
+        lobbyAudioAnalyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+
+        const h1 = Math.min(20, Math.max(4, (avg / 255) * 24));
+        const h2 = Math.min(26, Math.max(5, (avg / 255) * 32));
+        const h3 = Math.min(18, Math.max(4, (avg / 255) * 22));
+
+        if (bars[0]) bars[0].style.height = `${h1}px`;
+        if (bars[1]) bars[1].style.height = `${h2}px`;
+        if (bars[2]) bars[2].style.height = `${h3}px`;
+      }
+      if (lobbyWaveAnim) cancelAnimationFrame(lobbyWaveAnim);
+      drawWave();
+    } catch (e) {
+      console.warn('Lobby audio visualizer error:', e);
+    }
   }
 
   async function startPreview() {
@@ -310,8 +382,8 @@
     previewTracks = [];
     try {
       if (!camOn && !micOn) {
-        $('previewOff').textContent = 'Camera & Microphone are muted';
-        $('previewOff').classList.remove('hidden');
+        $('previewOff')?.classList.remove('hidden');
+        $('lobbyAudioMeter')?.classList.add('muted');
         return;
       }
       previewTracks = await createLocalTracks({
@@ -325,16 +397,24 @@
         }
         v.attach($('previewVideo'));
         $('previewVideo').play().catch(() => {});
-        $('previewOff').classList.add('hidden');
+        $('previewOff')?.classList.add('hidden');
       } else {
-        $('previewOff').textContent = 'Camera is off';
-        $('previewOff').classList.remove('hidden');
+        $('previewOff')?.classList.remove('hidden');
+      }
+
+      const a = previewTracks.find((t) => t.kind === 'audio');
+      if (a && a.mediaStreamTrack) {
+        setupLobbyAudioVisualizer(a.mediaStreamTrack);
+        $('lobbyAudioMeter')?.classList.remove('muted');
+      } else {
+        $('lobbyAudioMeter')?.classList.add('muted');
       }
       await fillDevices();
     } catch (e) {
       console.warn('Preview error:', e);
-      $('previewOff').textContent = 'Camera/mic permission needed — allow access in browser';
-      $('previewOff').classList.remove('hidden');
+      if ($('previewOff')) {
+        $('previewOff').classList.remove('hidden');
+      }
     }
   }
 
@@ -351,6 +431,10 @@
     micOn = !micOn;
     $('pvMic').classList.toggle('off', !micOn);
     $('pvMic').innerHTML = micOn ? I.mic : I.micOff;
+    $('lobbyAudioMeter')?.classList.toggle('muted', !micOn);
+    if (micOn && (!previewTracks.some((t) => t.kind === 'audio'))) {
+      startPreview();
+    }
   };
   $('pvCam').onclick = async () => {
     camOn = !camOn;
@@ -454,8 +538,10 @@
     $('lobby').classList.add('hidden');
     $('meeting').classList.remove('hidden');
     $('roomTitle').textContent = roomName;
+    if ($('bottomRoomName')) $('bottomRoomName').textContent = roomName;
     history.replaceState(null, '', '/' + roomName);
     joinedAt = Date.now();
+    tickClock();
     clockTimer = setInterval(tickClock, 1000);
 
     syncButtons();
@@ -489,6 +575,9 @@
     const s = Math.floor((Date.now() - joinedAt) / 1000);
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
     $('clock').textContent = (h ? h + ':' : '') + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+    if ($('bottomClock')) {
+      $('bottomClock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
   }
 
   // ---------- 6. RENDERING TILES & AVATAR IMAGES ----------
@@ -611,7 +700,9 @@
 
       const label = (t.p.name || t.p.identity) + (t.isLocal ? ' (you)' : '') + (t.screen ? ' — screen' : '');
       el.querySelector('.nm').textContent = label;
-      el.querySelector('.mic').innerHTML = t.screen ? '' : t.micMuted ? '🔇' : '';
+      const isSpeaking = activeSpeakerIds.has(t.p.identity) && !t.screen;
+      const micStatus = t.screen ? '' : t.micMuted ? '🔇' : isSpeaking ? '<span class="speaking-bars"><span></span><span></span><span></span></span>' : '';
+      el.querySelector('.mic').innerHTML = micStatus;
       el.querySelector('.hand').classList.toggle('hidden', t.screen || !raisedHands.has(t.p.identity));
       el.querySelector('.pin').textContent = pinnedKey === t.key ? 'Unpin' : 'Pin';
       const q = el.querySelector('.quality');
@@ -925,7 +1016,9 @@
     $('micBtn').classList.toggle('off', !micOn); setIcon($('micBtn'), micOn ? I.mic : I.micOff);
     $('camBtn').classList.toggle('off', !camOn); setIcon($('camBtn'), camOn ? I.cam : I.camOff);
     $('shareBtn').classList.toggle('active', lp.isScreenShareEnabled);
-    $('shareBtn').querySelector('.lbl').textContent = lp.isScreenShareEnabled ? 'Stop share' : 'Share';
+    if ($('shareBtn').querySelector('.lbl')) {
+      $('shareBtn').querySelector('.lbl').textContent = lp.isScreenShareEnabled ? 'Stop share' : 'Share';
+    }
   }
 
   $('micBtn').onclick = async () => { await room.localParticipant.setMicrophoneEnabled(!room.localParticipant.isMicrophoneEnabled); syncButtons(); render(); };
@@ -1015,10 +1108,80 @@
 
   $('chatBtn').onclick = () => {
     const side = $('sidePanel');
-    side.classList.toggle('hidden');
-    if (!side.classList.contains('hidden')) { showTab('chat'); $('chatInput').focus(); }
+    if (side.classList.contains('hidden')) {
+      side.classList.remove('hidden');
+      showTab('chat');
+      $('chatInput')?.focus();
+    } else {
+      const isChatActive = document.querySelector('.tab[data-tab="chat"]')?.classList.contains('active');
+      if (isChatActive) {
+        side.classList.add('hidden');
+      } else {
+        showTab('chat');
+        $('chatInput')?.focus();
+      }
+    }
     setTimeout(render, 0);
   };
+
+  $('peopleBtn')?.addEventListener('click', () => {
+    const side = $('sidePanel');
+    if (side.classList.contains('hidden')) {
+      side.classList.remove('hidden');
+      showTab('people');
+    } else {
+      const isPeopleActive = document.querySelector('.tab[data-tab="people"]')?.classList.contains('active');
+      if (isPeopleActive) {
+        side.classList.add('hidden');
+      } else {
+        showTab('people');
+      }
+    }
+    setTimeout(render, 0);
+  });
+
+  $('boardBtn')?.addEventListener('click', () => {
+    const side = $('sidePanel');
+    if (side.classList.contains('hidden')) {
+      side.classList.remove('hidden');
+      showTab('board');
+    } else {
+      const isBoardActive = document.querySelector('.tab[data-tab="board"]')?.classList.contains('active');
+      if (isBoardActive) {
+        side.classList.add('hidden');
+      } else {
+        showTab('board');
+      }
+    }
+    setTimeout(render, 0);
+  });
+
+  $('activitiesBtn')?.addEventListener('click', () => {
+    const side = $('sidePanel');
+    if (side.classList.contains('hidden')) {
+      side.classList.remove('hidden');
+      showTab('recs');
+    } else {
+      const isRecsActive = document.querySelector('.tab[data-tab="recs"]')?.classList.contains('active');
+      if (isRecsActive) {
+        side.classList.add('hidden');
+      } else {
+        showTab('recs');
+      }
+    }
+    setTimeout(render, 0);
+  });
+
+  $('infoBtn')?.addEventListener('click', async () => {
+    const link = `${location.origin}/${roomName}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast(`Meeting link copied: ${link} 📋`);
+    } catch {
+      toast(`Meeting room: ${roomName}`);
+    }
+  });
+
   $('closeSide').onclick = () => { $('sidePanel').classList.add('hidden'); setTimeout(render, 0); };
 
   async function refreshRecordingStatus() {
