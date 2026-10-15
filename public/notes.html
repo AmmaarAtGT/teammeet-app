@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meeting Notes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body { overflow-y: auto; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; }
+    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 26px 0 10px; }
+    h3 { font-size: 15px; margin: 14px 0 6px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+    video { width: 100%; border-radius: 12px; background: #000; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .actions a, .actions button { text-decoration: none; }
+    .person { border-left: 3px solid var(--accent); padding-left: 12px; margin-bottom: 14px; }
+    .person ul { margin: 6px 0 0; padding-left: 0; list-style: none; }
+    .person li { display: flex; gap: 8px; padding: 4px 0; }
+    .person li .due { color: var(--warn); font-size: 12px; white-space: nowrap; }
+    .person li .ctx { display: block; color: var(--muted); font-size: 13px; }
+    .tx { max-height: 70vh; overflow-y: auto; }
+    .line { display: grid; grid-template-columns: 60px 1fr; gap: 8px; padding: 6px 4px; border-radius: 8px; cursor: pointer; }
+    .line:hover { background: var(--panel-2); }
+    .line.now { background: rgba(59,130,246,.15); }
+    .line time { color: var(--muted); font-size: 12px; padding-top: 2px; font-variant-numeric: tabular-nums; }
+    .spk { font-weight: 600; }
+    .search { width: 100%; padding: 9px 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; color: var(--text); outline: none; }
+    .pending { text-align: center; padding: 40px 10px; color: var(--muted); }
+    ul.plain { padding-left: 18px; margin: 6px 0; }
+    ul.plain li { margin: 4px 0; }
+    @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <h1 id="title">Meeting notes</h1>
+        <div id="meta" class="muted"></div>
+      </div>
+      <div class="actions" id="actions"></div>
+    </div>
+    <div id="content"><div class="pending">Loading…</div></div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const id = decodeURIComponent(location.pathname.split('/').pop());
+  let pass = ''; try { pass = localStorage.getItem('tm_pass') || ''; } catch {}
+  const q = pass ? `?p=${encodeURIComponent(pass)}` : '';
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (sec) => { const s = Math.floor(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return `${h ? h + ':' : ''}${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+  const STATUS = { recording: 'Still recording…', processing: 'Finishing the recording files…', transcribing: 'Transcribing each speaker…', summarizing: 'Writing the AI summary and action items…', error: 'Something went wrong' };
+  const colors = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#f87171', '#22d3ee', '#fb923c'];
+  const colorFor = (() => { const m = {}; return (n) => (m[n] ??= colors[Object.keys(m).length % colors.length]); })();
+
+  async function load() {
+    const r = await fetch(`/api/sessions/${encodeURIComponent(id)}`, { headers: { 'x-team-passcode': pass } });
+    if (!r.ok) { $('content').innerHTML = `<div class="pending">${r.status === 401 ? 'Join a meeting with the team passcode first, then reopen this page.' : 'Recording not found.'}</div>`; return; }
+    const { session: s, transcript, notes } = await r.json();
+    $('title').textContent = `Meeting notes — ${s.room}`;
+    document.title = `Notes — ${s.room}`;
+    const dur = s.stoppedAt ? Math.round((Date.parse(s.stoppedAt) - Date.parse(s.createdAt)) / 60000) + ' min' : '';
+    $('meta').textContent = [new Date(s.createdAt).toLocaleString(), dur, (s.participants || []).join(', ')].filter(Boolean).join(' · ');
+
+    const acts = [];
+    if (s.hasVideo) acts.push(`<a class="ghost" href="/files/${encodeURIComponent(id)}/meeting.mp4${q}${q ? '&' : '?'}download=1">Download video</a>`);
+    if (notes) acts.push(`<a class="ghost" href="/files/${encodeURIComponent(id)}/notes.md${q}${q ? '&' : '?'}download=1">Download notes (.md)</a>`, `<button class="ghost" id="copyNotes">Copy notes</button>`);
+    if (['ready', 'error'].includes(s.status)) acts.push(`<button class="ghost" id="reprocess">Regenerate AI notes</button>`);
+    $('actions').innerHTML = acts.join('');
+
+    if (!['ready', 'error'].includes(s.status)) {
+      $('content').innerHTML = `<div class="pending">${STATUS[s.status] || s.status}<br><small>This page refreshes automatically. Long meetings can take several minutes.</small></div>`;
+      setTimeout(load, 8000);
+      return;
+    }
+
+    const left = [];
+    if (s.hasVideo) left.push(`<div class="card"><video id="player" controls preload="metadata" src="/files/${encodeURIComponent(id)}/meeting.mp4${q}"></video></div>`);
+    if (s.status === 'error') left.push(`<div class="card"><strong style="color:var(--danger)">AI notes failed:</strong> ${esc(s.error)}<br><span class="muted">Check the transcription worker and LLM settings (see README → Troubleshooting), then press “Regenerate AI notes”.</span></div>`);
+    if (notes) {
+      left.push(`<h2>Summary</h2><div class="card">${esc(notes.summary).replace(/\n/g, '<br>')}</div>`);
+      if (notes.action_items?.length) {
+        left.push(`<h2>Action items by person</h2><div class="card">${notes.action_items.map((p) => `
+          <div class="person" style="border-color:${colorFor(p.owner)}"><h3>${esc(p.owner)}</h3><ul>${p.items.map((i) => `
+            <li><input type="checkbox"><div>${esc(i.task)} ${i.due ? `<span class="due">due ${esc(i.due)}</span>` : ''}${i.context ? `<span class="ctx">${esc(i.context)}</span>` : ''}</div></li>`).join('')}</ul></div>`).join('')}</div>`);
+      }
+      if (notes.decisions?.length) left.push(`<h2>Decisions</h2><div class="card"><ul class="plain">${notes.decisions.map((d) => `<li>${esc(d)}</li>`).join('')}</ul></div>`);
+      if (notes.topics?.length) left.push(`<h2>Detailed notes</h2><div class="card">${notes.topics.map((t) => `<h3>${esc(t.title)}</h3><p>${esc(t.notes)}</p>`).join('')}</div>`);
+      if (notes.open_questions?.length) left.push(`<h2>Open questions</h2><div class="card"><ul class="plain">${notes.open_questions.map((d) => `<li>${esc(d)}</li>`).join('')}</ul></div>`);
+      left.push(`<p class="muted small">Generated by ${esc(notes.model)} · ${new Date(notes.generatedAt).toLocaleString()}</p>`);
+    }
+
+    const right = transcript?.length
+      ? `<h2>Transcript (${new Set(transcript.map((l) => l.speaker)).size} speakers)</h2><div class="card"><input class="search" id="search" placeholder="Search transcript"><div class="tx" id="tx">${
+          transcript.map((l, i) => `<div class="line" data-t="${l.start}" data-i="${i}"><time>${fmt(l.start)}</time><div><span class="spk" style="color:${colorFor(l.speaker)}">${esc(l.speaker)}</span> ${esc(l.text)}</div></div>`).join('')}</div></div>`
+      : `<h2>Transcript</h2><div class="card muted">No transcript for this recording.</div>`;
+
+    $('content').innerHTML = `<div class="cols"><div>${left.join('')}</div><div>${right}</div></div>`;
+
+    const player = $('player');
+    document.querySelectorAll('.line').forEach((el) => (el.onclick = () => { if (player) { player.currentTime = +el.dataset.t; player.play(); } }));
+    if (player) player.ontimeupdate = () => {
+      let cur = null;
+      document.querySelectorAll('.line').forEach((el) => { if (+el.dataset.t <= player.currentTime) cur = el; el.classList.remove('now'); });
+      if (cur) cur.classList.add('now');
+    };
+    $('search')?.addEventListener('input', (e) => {
+      const v = e.target.value.toLowerCase();
+      document.querySelectorAll('.line').forEach((el) => (el.style.display = !v || el.textContent.toLowerCase().includes(v) ? '' : 'none'));
+    });
+    $('copyNotes')?.addEventListener('click', async () => {
+      const md = await fetch(`/files/${encodeURIComponent(id)}/notes.md${q}`).then((r) => r.text());
+      await navigator.clipboard.writeText(md);
+      $('copyNotes').textContent = 'Copied ✓';
+    });
+    $('reprocess')?.addEventListener('click', async () => {
+      await fetch(`/api/sessions/${encodeURIComponent(id)}/reprocess`, { method: 'POST', headers: { 'x-team-passcode': pass } });
+      load();
+    });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

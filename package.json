@@ -1,0 +1,24 @@
+{
+  "name": "teammeet",
+  "version": "1.0.0",
+  "description": "Self-hosted, always-on team video meetings with recording and AI notes (LiveKit based)",
+  "main": "server.js",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "node build/build.js",
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@livekit/track-processors": "^0.8.2",
+    "express": "^4.21.2",
+    "livekit-client": "^2.22.4",
+    "livekit-server-sdk": "^2.19.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TeamMeet — Interactive Visual Feature & Architecture Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(23, 32, 54, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.35);
+      --emerald: #10b981;
+      --purple: #8b5cf6;
+      --amber: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at 15% 15%, #1e1b4b 0%, #0b0f19 50%, #030712 100%);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding-bottom: 60px;
+    }
+    header {
+      padding: 48px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::after {
+      content: '';
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 300px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      z-index: 0;
+      pointer-events: none;
+    }
+    .header-content {
+      position: relative;
+      z-index: 1;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #60a5fa;
+      margin-bottom: 20px;
+      animation: pulseGlow 3s infinite alternate;
+    }
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+      100% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6); }
+    }
+    h1 {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
+      background: linear-gradient(135deg, #ffffff 30%, #93c5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 700px;
+      margin: 0 auto 28px;
+    }
+    .nav-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+    .tab-btn {
+      padding: 10px 22px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-size: 14px;
+    }
+    .tab-btn:hover, .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 4px 20px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .tab-pane {
+      display: none;
+      animation: fadeIn 0.4s ease forwards;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 28px;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    .feature-card:hover {
+      border-color: rgba(96, 165, 250, 0.4);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+    .icon-box {
+      width: 50px;
+      height: 50px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+    .card-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .tech-pill {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 3px 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 6px;
+      color: #93c5fd;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    .live-demo-banner {
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.4) 0%, rgba(17, 24, 39, 0.8) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 18px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+    }
+    .btn-action {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-action:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
+    }
+    /* Flow Diagrams */
+    .flow-diagram {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      margin: 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .flow-step {
+      flex: 1;
+      min-width: 180px;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      position: relative;
+    }
+    .flow-step h4 {
+      font-size: 15px;
+      margin-bottom: 6px;
+      color: #93c5fd;
+    }
+    .flow-step p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .flow-arrow {
+      color: #3b82f6;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    /* Matrix Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background: var(--card-bg);
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--card-border);
+    }
+    th, td {
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      background: rgba(30, 41, 59, 0.8);
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+    td {
+      border-top: 1px solid var(--card-border);
+      color: var(--text-muted);
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: #fff;
+    }
+    .code-box {
+      background: #030712;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-content">
+      <div class="badge-pill">⚡ Enterprise Production Ready &bull; Zero Timeout</div>
+      <h1>TeamMeet Interactive Operations Guide</h1>
+      <p class="subtitle">Complete technical walkthrough for engineers, marketing leads, and interns. Visualizing mobile wake locks, audio recording, AI notes, Google Drive sync, and dynamic credentials.</p>
+      
+      <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('features')">🚀 12 Core Features</button>
+        <button class="tab-btn" onclick="switchTab('mobile')">📱 Phone Voice Fix</button>
+        <button class="tab-btn" onclick="switchTab('recording')">🎙️ Audio & AI Notes</button>
+        <button class="tab-btn" onclick="switchTab('architecture')">☁️ Cloud & Drive Sync</button>
+        <button class="tab-btn" onclick="switchTab('aws')">📊 AWS Sizing Guide</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    
+    <!-- Tab 1: Core Features -->
+    <div id="tab-features" class="tab-pane active">
+      <div class="live-demo-banner">
+        <div>
+          <h3 style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">Ready to test live meetings?</h3>
+          <p style="font-size: 13px; color: #94a3b8;">Choose a permanent room link to test WebRTC audio, screen sharing, and the whiteboard.</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a href="/dev-room" class="btn-action">💻 Dev Room</a>
+          <a href="/marketing" class="btn-action" style="background:#4f46e5;">📢 Marketing</a>
+          <a href="/general" class="btn-action" style="background:#059669;">🏢 General</a>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="feature-card">
+          <div class="icon-box" style="color:#60a5fa;">📱</div>
+          <h3 class="card-title">1. Mobile Screen Auto-Lock Fix</h3>
+          <p class="card-desc">No more dropped audio when your phone screen turns off. Combines Screen WakeLock API with an ultra-low frequency Web Audio keepalive oscillator to prevent mobile OS browser background suspension.</p>
+          <span class="tech-pill">WakeLock API</span>
+          <span class="tech-pill">Web Audio</span>
+          <span class="tech-pill">VisibilityObserver</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="icon-box" style="color:#34d399;">🎙️</div>
+          <h3 class="card-title">2. Pure Conference Audio Recording</h3>
+          <p class="card-desc">Record full multi-peer conference discussions client-side without costly server egress. Mixes mic input + peer audio nodes into crystal-clear WAV/WebM audio tracks.</p>
+          <span class="tech-pill">MediaStreamDestination</span>
+          <span class="tech-pill">MediaRecorder</span>
+          <span class="tech-pill">Zero Server Load</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="icon-box" style="color:#a78bfa;">🧠</div>
+          <h3 class="card-title">3. On-Demand AI Meeting Notes</h3>
+          <p class="card-desc">Turn on AI transcription only when critical topics are discussed. Avoids burning API tokens during casual standups. Delivers instant action-item summaries.</p>
+          <span class="tech-pill">Toggle Controller</span>
+          <span class="tech-pill">Whisper / LLM</span>
+          <span class="tech-pill">Token Saver</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="icon-box" style="color:#f472b6;">🎨</div>
+          <h3 class="card-title">4. Real-Time Collaborative Whiteboard</h3>
+          <p class="card-desc">Integrated HTML5 canvas side panel. Sketch architectures, draw user flows, pick colors and brush sizes, and export high-res PNGs in 1 click.</p>
+          <span class="tech-pill">HTML5 Canvas</span>
+          <span class="tech-pill">1-Click PNG Export</span>
+          <span class="tech-pill">Touch & Mouse</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="icon-box" style="color:#38bdf8;">☁️</div>
+          <h3 class="card-title">5. Google Drive Auto-Sync</h3>
+          <p class="card-desc">Connect any Google Drive folder ID right from the top bar. Automatically exports audio recordings, AI notes, and whiteboard diagrams straight into team folders.</p>
+          <span class="tech-pill">POST /api/drive/sync</span>
+          <span class="tech-pill">Folder ID Picker</span>
+          <span class="tech-pill">Auto Archive</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="icon-box" style="color:#fbbf24;">🧹</div>
+          <h3 class="card-title">6. 15-Day Data Retention Purge</h3>
+          <p class="card-desc">Automated server daemon cleans up media assets and egress chunks older than 15 days every 12 hours. Zero disk overflows on Railway or EC2.</p>
+          <span class="tech-pill">fs.statSync</span>
+          <span class="tech-pill">Retention Daemon</span>
+          <span class="tech-pill">15-Day Policy</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="icon-box" style="color:#818cf8;">🤖</div>
+          <h3 class="card-title">7. Dynamic Credential Bot</h3>
+          <p class="card-desc">Floating bot UI allows the room owner to rotate LiveKit URL and API keys in real time when free tier limits are approached, without redeploying the app.</p>
+          <span class="tech-pill">POST /api/admin/keys</span>
+          <span class="tech-pill">Zero Downtime</span>
+          <span class="tech-pill">In-Memory Hot Swap</span>
+        </div>
+
+        <div class="feature-card">
+          <div class="icon-box" style="color:#fb7185;">🖼️</div>
+          <h3 class="card-title">8. Studio Virtual Backgrounds</h3>
+          <p class="card-desc">No tacky flat colors. Features realistic Executive Boardroom, Modern Loft, City Skyline, Warm Library, Bokeh Gaussian Blur, or your custom uploaded image.</p>
+          <span class="tech-pill">MediaPipe Segmentation</span>
+          <span class="tech-pill">Wasm Acceleration</span>
+          <span class="tech-pill">Custom Image Upload</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Mobile WakeLock -->
+    <div id="tab-mobile" class="tab-pane">
+      <div class="feature-card" style="margin-bottom:24px;">
+        <h2 style="margin-bottom:12px;">📱 How the Mobile Voice & Screen Lock Fix Works</h2>
+        <p style="color:var(--text-muted); margin-bottom:20px;">
+          Mobile operating systems (iOS and Android) aggressively throttle WebRTC audio and pause JavaScript timers when the device screen locks. TeamMeet implements a 3-layer anti-sleep defense:
+        </p>
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <h4>1. WakeLock API</h4>
+            <p>Requests `screen` wake lock to keep display active during call</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <h4>2. Silent Audio Oscillator</h4>
+            <p>Plays inaudible 40Hz sound to keep mobile audio engine awake</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <h4>3. Visibility Observer</h4>
+            <p>Automatically triggers `.play()` on all remote audio tracks upon app resume</p>
+          </div>
+        </div>
+        <div class="code-box">
+// Core Keepalive snippet inside public/app.js:
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const osc = audioCtx.createOscillator();
+const gain = audioCtx.createGain();
+gain.gain.value = 0.0001; // Inaudible
+osc.connect(gain);
+gain.connect(audioCtx.destination);
+osc.start();
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Recording & AI Notes -->
+    <div id="tab-recording" class="tab-pane">
+      <div class="feature-card" style="margin-bottom:24px;">
+        <h2 style="margin-bottom:12px;">🎙️ Pure Audio Recording & On-Demand AI Notes</h2>
+        <p style="color:var(--text-muted); margin-bottom:20px;">
+          Rather than taxing server CPU with video transcoding, TeamMeet taps the client-side master audio mix:
+        </p>
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <h4>Local Mic Input</h4>
+            <p>Microphone Audio Node</p>
+          </div>
+          <div class="flow-arrow">+</div>
+          <div class="flow-step">
+            <h4>Remote Peer Audio</h4>
+            <p>LiveKit Track Audio Nodes</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <h4>Master Mix</h4>
+            <p>MediaStreamDestination & MediaRecorder</p>
+          </div>
+        </div>
+        <p style="font-size:14px; color:var(--text-muted); margin-top:16px;">
+          ✅ Instant download of pure audio files.<br>
+          ✅ Toggle AI Notes on only for key decision items to preserve API quota.<br>
+          ✅ One-click sync to team Google Drive folder.
+        </p>
+      </div>
+    </div>
+
+    <!-- Tab 4: Architecture & Google Drive -->
+    <div id="tab-architecture" class="tab-pane">
+      <div class="feature-card" style="margin-bottom:24px;">
+        <h2 style="margin-bottom:12px;">☁️ Architecture & Google Drive Synchronization</h2>
+        <p style="color:var(--text-muted); margin-bottom:20px;">
+          TeamMeet separates the WebRTC media plane from application logic to ensure zero server bottlenecks:
+        </p>
+        <div class="flow-diagram">
+          <div class="flow-step">
+            <h4>Railway Web App</h4>
+            <p>Serves UI, generates tokens, runs 15-day purge cron</p>
+          </div>
+          <div class="flow-arrow">&harr;</div>
+          <div class="flow-step">
+            <h4>LiveKit Cloud SFU</h4>
+            <p>Global media routing, 50GB free monthly bandwidth</p>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <h4>Google Drive</h4>
+            <p>Permanent cloud storage for meeting artifacts</p>
+          </div>
+        </div>
+        <div class="code-box">
+# Purge Policy in server.js:
+const PURGE_RETENTION_DAYS = 15;
+// Automatically deletes recorded files older than 15 days every 12 hours
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 5: AWS Sizing Matrix -->
+    <div id="tab-aws" class="tab-pane">
+      <div class="feature-card">
+        <h2 style="margin-bottom:12px;">📊 AWS EC2 Instance Sizing & Migration Matrix</h2>
+        <p style="color:var(--text-muted); margin-bottom:16px;">
+          ⚠️ <strong>Crucial:</strong> Do NOT use existing `t3.micro` instances (`vasu`, `Autorefer-env`, `Autorefer-01`). They are active production machines with only 1GB RAM.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Deployment Phase</th>
+              <th>Recommended EC2</th>
+              <th>vCPU / RAM</th>
+              <th>Target Capacity</th>
+              <th>Est. Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Smooth Starter (Recommended)</strong></td>
+              <td><span style="color:#60a5fa; font-weight:600;">t3.medium</span></td>
+              <td>2 vCPU / 4 GB</td>
+              <td>20 internal team members (Dev + Marketing)</td>
+              <td>~$30 / mo</td>
+            </tr>
+            <tr>
+              <td><strong>Self-Hosted LiveKit SFU</strong></td>
+              <td><span style="color:#34d399; font-weight:600;">c6i.large</span></td>
+              <td>2 vCPU / 4 GB</td>
+              <td>50+ concurrent users with media forwarding</td>
+              <td>~$62 / mo</td>
+            </tr>
+            <tr>
+              <td><strong>Heavy Egress & AI Whisper</strong></td>
+              <td><span style="color:#a78bfa; font-weight:600;">c6i.xlarge</span></td>
+              <td>4 vCPU / 8 GB</td>
+              <td>100+ users, headless Chrome recording & AI</td>
+              <td>~$124 / mo</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:20px; font-size:14px; color:var(--text-muted);">
+          💡 <strong>Best Strategy:</strong> Start on Railway + LiveKit Cloud (Free tier) today. If private AWS hosting is required later, launch a fresh dedicated `t3.medium` instance.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      
+      const targetPane = document.getElementById('tab-' + tabId);
+      if (targetPane) targetPane.classList.add('active');
+      
+      event.currentTarget.classList.add('active');
+    }
+  </script>
+</body>
+</html>
