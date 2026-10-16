@@ -1680,7 +1680,8 @@ button, input, select {
     padding: 16px;
   }
 
-  .lobby-stage-col, .lobby-form-col {
+  .lobby-stage-col,
+  .lobby-form-col {
     max-width: 100%;
     width: 100%;
   }
@@ -1689,21 +1690,10 @@ button, input, select {
     display: none;
   }
 
-  
-.bar-center {
-  flex: 1;
-  min-width: 0;
-  justify-content: flex-start;
-  gap: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-
-.bar-center::-webkit-scrollbar {
-  display: none;
-}
-
+  .bar-center {
+    justify-content: flex-start;
+    gap: 8px;
+  }
 
   .meet-btn-circle {
     width: 44px;
@@ -1724,7 +1714,6 @@ button, input, select {
     margin: 0;
   }
 }
-
 
 @media (max-width: 600px) {
   .meet-bottom-bar {
@@ -1773,38 +1762,5 @@ button, input, select {
   }
 
    
-/* TEMPORARY MOBILE CONTROL VISIBILITY TEST */
-@media (max-width: 900px) {
-  #meetBottomBar {
-    display: flex !important;
-    position: relative !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    overflow: visible !important;
-  }
 
-  #meetBottomBar .bar-center {
-    display: flex !important;
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    overflow-x: auto !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-
-  #meetBottomBar #micBtn,
-  #meetBottomBar #leaveBtn {
-    display: inline-flex !important;
-    flex-shrink: 0 !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: relative !important;
-    z-index: 999 !important;
-  }
-}
-
-
-  .bar-right .meet-btn-icon:not(#chatBtn):not(#peopleBtn) {
-    display: inline-flex;
-  }
 }
