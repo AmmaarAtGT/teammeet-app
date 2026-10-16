@@ -1764,3 +1764,25 @@ button, input, select {
    
 
 }
+
+@media (max-width: 600px) {
+  #micBtn,
+  #leaveBtn {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 9999 !important;
+    flex-shrink: 0 !important;
+  }
+
+  #micBtn {
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+
+  #leaveBtn {
+    min-width: 60px !important;
+    min-height: 40px !important;
+  }
+}
