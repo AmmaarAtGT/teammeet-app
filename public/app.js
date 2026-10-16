@@ -625,10 +625,10 @@
       }
     });
 
-    // ⚡ ENTERPRISE 50-100 USER CONCURRENCY SCALING:
-    // Browser hardware decoders limit concurrent 720p video to 12-16 streams.
-    // We prioritize: Screen Share (100) > Pinned (90) > Local (80) > Raised Hand (70) > Active Speaker (60) > Others (10).
-    const MAX_ACTIVE_TILES = 12;
+    // ⚡ ENTERPRISE UNLIMITED CONCURRENCY SCALING:
+    // Display up to 49 members dynamically in Google Meet gallery grid (7x7).
+    // Priority: Screen Share (100) > Pinned (90) > Local (80) > Raised Hand (70) > Active Speaker (60) > Others (10).
+    const MAX_ACTIVE_TILES = 49;
     const priorityScore = (t) => {
       if (t.screen) return 100;
       if (t.key === pinnedKey) return 90;
@@ -717,15 +717,84 @@
     renderPeople();
   }
 
+  // ⚡ SENIOR DEVELOPER OPTIMAL TILE GEOMETRY CALCULATION (Google Meet Standard)
   function layoutGrid(n) {
     const grid = $('grid');
-    if (!n) { grid.style.gridTemplateColumns = ''; return; }
-    const w = grid.clientWidth || window.innerWidth;
-    const maxCols = w < 600 ? 2 : w < 1000 ? 3 : 4;
-    const cols = Math.min(maxCols, Math.ceil(Math.sqrt(n)));
-    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+    if (!grid) return;
+
+    // When screen share is focused, CSS grid handles the layout
+    if (grid.classList.contains('has-screen')) {
+      grid.querySelectorAll('.tile').forEach((el) => {
+        el.style.width = '';
+        el.style.height = '';
+        el.classList.remove('small-tile', 'xsmall-tile');
+      });
+      return;
+    }
+
+    if (!n || n <= 0) return;
+
+    // Available stage dimensions inside grid (minus padding)
+    const availW = Math.max(200, grid.clientWidth - 24); // 12px padding left/right
+    const availH = Math.max(150, grid.clientHeight - 24); // 12px padding top/bottom
+    const gap = n > 16 ? 6 : n > 9 ? 8 : 10;
+    const targetAspect = 16 / 9;
+
+    let bestArea = 0;
+    let bestWidth = 0;
+    let bestHeight = 0;
+
+    // Test every possible column count from 1 to n to find the layout that maximizes tile area while fitting 100% inside the viewport
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const maxTileW = (availW - (cols - 1) * gap) / cols;
+      const maxTileH = (availH - (rows - 1) * gap) / rows;
+
+      if (maxTileW <= 0 || maxTileH <= 0) continue;
+
+      let w = maxTileW;
+      let h = w / targetAspect;
+
+      if (h > maxTileH) {
+        h = maxTileH;
+        w = h * targetAspect;
+      }
+
+      const totalArea = w * h * n;
+      if (totalArea > bestArea) {
+        bestArea = totalArea;
+        bestWidth = Math.floor(w);
+        bestHeight = Math.floor(h);
+      }
+    }
+
+    // Safety fallback
+    if (bestWidth <= 0 || bestHeight <= 0) {
+      bestWidth = Math.floor(availW / Math.min(n, 3));
+      bestHeight = Math.floor(bestWidth / targetAspect);
+    }
+
+    grid.style.gap = `${gap}px`;
+
+    // Apply calculated dimensions to all active video tiles
+    grid.querySelectorAll('.tile').forEach((el) => {
+      el.style.width = `${bestWidth}px`;
+      el.style.height = `${bestHeight}px`;
+      el.style.aspectRatio = 'auto'; // Width and height explicitly set for exact fitting
+
+      el.classList.toggle('small-tile', bestWidth < 300 || bestHeight < 180);
+      el.classList.toggle('xsmall-tile', bestWidth < 180 || bestHeight < 120);
+    });
   }
   window.addEventListener('resize', () => room && render());
+  if (typeof ResizeObserver !== 'undefined') {
+    const gridEl = $('grid');
+    if (gridEl) {
+      new ResizeObserver(() => {
+        if (room) layoutGrid(gridEl.querySelectorAll('.tile').length);
+      }).observe(gridEl);
+    }
+  }
 
 
   function markSpeakers(speakers) {
