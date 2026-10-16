@@ -1772,6 +1772,38 @@ button, input, select {
     flex-shrink: 0;
   }
 
+   
+/* TEMPORARY MOBILE CONTROL VISIBILITY TEST */
+@media (max-width: 900px) {
+  #meetBottomBar {
+    display: flex !important;
+    position: relative !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+
+  #meetBottomBar .bar-center {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  #meetBottomBar #micBtn,
+  #meetBottomBar #leaveBtn {
+    display: inline-flex !important;
+    flex-shrink: 0 !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 999 !important;
+  }
+}
+
+
   .bar-right .meet-btn-icon:not(#chatBtn):not(#peopleBtn) {
     display: inline-flex;
   }
