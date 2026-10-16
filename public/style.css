@@ -1689,10 +1689,21 @@ button, input, select {
     display: none;
   }
 
-  .bar-center {
-    justify-content: flex-start;
-    gap: 8px;
-  }
+  
+.bar-center {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.bar-center::-webkit-scrollbar {
+  display: none;
+}
+
 
   .meet-btn-circle {
     width: 44px;
