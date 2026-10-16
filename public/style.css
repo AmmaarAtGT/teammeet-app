@@ -659,16 +659,19 @@ button, input, select {
   width: 100%;
 }
 
+
 .grid {
   flex: 1;
   min-height: 0;
   min-width: 0;
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 16px;
-  align-content: start;
-  justify-content: center;
-  overflow-y: auto;
+  align-content: stretch;
+  justify-content: stretch;
+  overflow: hidden;
 }
 
 .grid.has-screen {
