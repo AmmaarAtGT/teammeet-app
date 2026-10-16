@@ -648,31 +648,25 @@ button, input, select {
    ========================================================================== */
 
 
+
 .stage {
   flex: 1;
   display: flex;
   min-height: 0;
-  min-width: 0;
   position: relative;
-  padding-bottom: 0;
-  overflow: hidden;
-  width: 100%;
+  padding-bottom: 80px; /* Space for bottom bar */
 }
-
 
 .grid {
   flex: 1;
-  min-height: 0;
-  min-width: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 16px;
-  align-content: stretch;
-  justify-content: stretch;
-  overflow: hidden;
+  align-content: center;
+  justify-content: center;
+  overflow-y: auto;
 }
+
 
 .grid.has-screen {
   display: grid !important;
