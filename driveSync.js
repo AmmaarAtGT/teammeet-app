@@ -142,6 +142,9 @@ async function syncSessionToDrive(session, sessionDirPath, driveFolder) {
     { file: 'attendance.csv', name: `${session.room}_Attendance_${session.id}.csv`, mime: 'text/csv' },
     { file: 'transcript.json', name: `${session.room}_Transcript_${session.id}.json`, mime: 'application/json' },
     { file: 'meeting.mp4', name: `${session.room}_Recording_${session.id}.mp4`, mime: 'video/mp4' },
+    { file: 'screen_recording.webm', name: `${session.room}_ScreenRecording_${session.id}.webm`, mime: 'video/webm' },
+    { file: 'audio_recording.webm', name: `${session.room}_AudioRecording_${session.id}.webm`, mime: 'audio/webm' },
+    { file: 'whiteboard.png', name: `${session.room}_Whiteboard_${session.id}.png`, mime: 'image/png' },
   ];
 
   if (accessToken) {

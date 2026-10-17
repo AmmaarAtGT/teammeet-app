@@ -680,6 +680,7 @@
     updateParticipantCount();
     initWhiteboard();
     setupAiNotesAndDrive();
+    if (isAiNotesActive) startLiveSpeechRecognition();
     refreshRecordingStatus();
     setInterval(refreshRecordingStatus, 15000);
   }
@@ -717,6 +718,7 @@
     if (audioKeepAliveCtx) { audioKeepAliveCtx.close().catch(() => {}); audioKeepAliveCtx = null; }
     if (localRecorder) stopLocalRecording();
     if (audioRecorder) stopAudioRecording();
+    stopLiveSpeechRecognition();
     $('grid').innerHTML = '';
     $('meeting').classList.add('hidden');
     $('lobby').classList.remove('hidden');
@@ -1107,16 +1109,25 @@
   }
   $('peopleSearch')?.addEventListener('input', renderPeople);
 
-  $('btnExportAttendance')?.addEventListener('click', () => {
+  async function syncAttendanceToDrive() {
     if (!roomName) return;
-    const passParam = passcode ? `&p=${encodeURIComponent(passcode)}` : '';
-    const exportUrl = `/api/attendance?room=${encodeURIComponent(roomName)}&format=csv${passParam}`;
-    const a = document.createElement('a');
-    a.href = exportUrl;
-    a.download = `attendance-${roomName}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    toast('📥 Attendance report downloaded (CSV)');
-  });
+    toast('📁 Syncing attendance to Google Drive...');
+    const driveFolder = store.get('tm_drive_folder') || '';
+    try {
+      const res = await api('/api/attendance/sync-drive', {
+        method: 'POST',
+        body: { room: roomName, driveFolder }
+      });
+      toast(`📁 Attendance (${res.recordsCount || 1} members) synced to Google Drive! ✓`, 5000);
+      if (res.driveFolderUrl) {
+        window.open(res.driveFolderUrl, '_blank');
+      }
+    } catch (err) {
+      toast('Attendance sync error: ' + err.message);
+    }
+  }
+
+  $('btnExportAttendance')?.addEventListener('click', syncAttendanceToDrive);
 
   // ---------- 8. REAL-TIME COLLABORATIVE WHITEBOARD ----------
   function initWhiteboard() {
@@ -1221,13 +1232,20 @@
       toast('Whiteboard cleared');
     };
 
-    // Save as File (PNG)
-    $('boardSave').onclick = () => {
-      const a = document.createElement('a');
-      a.download = `whiteboard-${roomName}-${new Date().toISOString().slice(0, 10)}.png`;
-      a.href = canvas.toDataURL('image/png');
-      a.click();
-      toast('Whiteboard saved to Downloads!');
+    // Save Whiteboard directly to Google Drive (Zero local downloads)
+    $('boardSave').onclick = async () => {
+      const dataUrl = canvas.toDataURL('image/png');
+      toast('📁 Syncing whiteboard to Google Drive...');
+      try {
+        const driveFolder = store.get('tm_drive_folder') || '';
+        await api('/api/recordings/upload', {
+          method: 'POST',
+          body: { room: roomName, type: 'whiteboard', dataBase64: dataUrl, driveFolder }
+        });
+        toast('📁 Whiteboard saved directly to Google Drive! ✓', 5000);
+      } catch (e) {
+        toast('Whiteboard sync to Drive: ' + e.message);
+      }
     };
   }
 
@@ -1267,13 +1285,24 @@
       rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       rec.onstop = () => {
         const blob = new Blob(chunks, { type: mime });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `Audio_Meeting_${roomName}_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
-        a.click();
         if (audioRecCtx) { audioRecCtx.close().catch(() => {}); audioRecCtx = null; }
         audioRecDest = null;
-        toast('Audio recording saved to Downloads 🎙️');
+
+        toast('📁 Syncing audio recording to Google Drive...');
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          try {
+            const driveFolder = store.get('tm_drive_folder') || '';
+            await api('/api/recordings/upload', {
+              method: 'POST',
+              body: { room: roomName, type: 'audio', dataBase64: reader.result, driveFolder }
+            });
+            toast('📁 Audio recording synced directly to Google Drive! ✓', 5000);
+          } catch (err) {
+            toast('Audio sync to Drive error: ' + err.message);
+          }
+        };
       };
 
       rec.start(1000);
@@ -1302,55 +1331,182 @@
 
 
   // ---------- 10. ON-DEMAND AI NOTES & GOOGLE DRIVE HOOKS ----------
-  function setupAiNotesAndDrive() {
-    $('btnAiNotesToggle').onclick = () => {
-      isAiNotesActive = !isAiNotesActive;
-      $('lblAiNotes').textContent = isAiNotesActive ? 'AI Notes: ON' : 'AI Notes: OFF';
-      $('btnAiNotesToggle').style.borderColor = isAiNotesActive ? '#3b82f6' : '#ef4444';
-      $('btnAiNotesToggle').style.color = isAiNotesActive ? '#93c5fd' : '#fca5a5';
-      toast(isAiNotesActive ? '📝 AI Notes capturing resumed' : '⏸️ AI Notes paused for confidential discussion');
-    };
+  let liveSpeechRec = null;
+  let liveAiNotes = [];
+  let liveAiActions = [];
 
-    function openDriveModal() {
-      const saved = store.get('tm_drive_folder') || '';
-      if ($('inputDriveModal')) $('inputDriveModal').value = saved;
-      if (saved) {
-        if ($('btnOpenDriveModal')) {
-          $('btnOpenDriveModal').style.display = 'inline-flex';
-          $('btnOpenDriveModal').href = saved.startsWith('http') ? saved : `https://drive.google.com/drive/folders/${saved}`;
-        }
-        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Currently synced to folder';
-      } else {
-        if ($('btnOpenDriveModal')) $('btnOpenDriveModal').style.display = 'none';
-        if ($('driveModalStatus')) $('driveModalStatus').textContent = '';
+  function addLiveAiNote(item, broadcast = true) {
+    if (!item || !item.text) return;
+    const time = item.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const speaker = item.speaker || 'Team Member';
+    const noteObj = { text: item.text, speaker, time, isAction: !!item.isAction };
+
+    if (noteObj.isAction) {
+      liveAiActions.push(noteObj);
+      const ul = $('aiLiveActionsList');
+      if (ul) {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${escapeHtml(speaker)}:</strong> ${escapeHtml(noteObj.text)} <span style="opacity:0.6;font-size:10px;">(${time})</span>`;
+        ul.appendChild(li);
+        ul.scrollTop = ul.scrollHeight;
       }
-      $('modalDrive')?.classList.remove('hidden');
+    } else {
+      liveAiNotes.push(noteObj);
+      const ul = $('aiLiveNotesList');
+      if (ul) {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${escapeHtml(speaker)}:</strong> ${escapeHtml(noteObj.text)} <span style="opacity:0.6;font-size:10px;">(${time})</span>`;
+        ul.appendChild(li);
+        ul.scrollTop = ul.scrollHeight;
+      }
     }
 
-    $('btnDriveFolder').onclick = openDriveModal;
-    $('closeModalDrive')?.addEventListener('click', () => $('modalDrive')?.classList.add('hidden'));
+    $('btnLiveNotesChip')?.classList.add('active');
+    $('aiNotesLivePop')?.classList.remove('hidden');
 
-    $('btnSaveDriveModal')?.addEventListener('click', async () => {
-      const url = ($('inputDriveModal')?.value || '').trim();
-      if (!url) {
-        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Please enter a Google Drive folder link or ID';
-        return;
-      }
-      store.set('tm_drive_folder', url);
-      if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Syncing folder...';
-      try {
-        await api('/api/drive/sync', { method: 'POST', body: { sessionId: recSessionId || 'general', driveFolderUrl: url } });
-        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Google Drive folder linked! Meeting recordings, notes & attendance will sync here ✓';
-        toast('📁 Google Drive folder linked and verified');
-        if ($('btnOpenDriveModal')) {
-          $('btnOpenDriveModal').style.display = 'inline-flex';
-          $('btnOpenDriveModal').href = url.startsWith('http') ? url : `https://drive.google.com/drive/folders/${url}`;
+    const driveFolder = store.get('tm_drive_folder');
+    if ($('aiLiveDriveStatus')) {
+      $('aiLiveDriveStatus').textContent = driveFolder ? '📁 Auto-syncing to Google Drive' : '📁 Link Drive for backup';
+    }
+
+    if (broadcast && room && typeof send === 'function') {
+      send({ type: 'live_note', item: noteObj }).catch(() => {});
+    }
+  }
+
+  function startLiveSpeechRecognition() {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec || liveSpeechRec) return;
+
+    try {
+      const rec = new SpeechRec();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onresult = (evt) => {
+        if (!isAiNotesActive) return;
+        const lastResult = evt.results[evt.results.length - 1];
+        if (!lastResult || !lastResult[0]) return;
+        const transcript = lastResult[0].transcript.trim();
+        if (transcript.length < 8) return;
+
+        const actionTriggers = /(action item|todo|will deploy|need to|let'?s schedule|follow up|assigned to|please ensure|agreed that|deadline)/i;
+        const isAction = actionTriggers.test(transcript);
+        const myName = room?.localParticipant?.name || 'You';
+
+        addLiveAiNote({
+          text: transcript,
+          speaker: myName,
+          isAction
+        }, true);
+      };
+
+      rec.onerror = (e) => {
+        if (e.error !== 'no-speech') {
+          console.warn('Speech rec error:', e.error);
         }
-        setTimeout(() => $('modalDrive')?.classList.add('hidden'), 1500);
-      } catch (e) {
-        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Saved locally: ' + e.message;
+      };
+
+      rec.onend = () => {
+        if (room && isAiNotesActive) {
+          try { rec.start(); } catch (_) {}
+        } else {
+          liveSpeechRec = null;
+        }
+      };
+
+      rec.start();
+      liveSpeechRec = rec;
+    } catch (e) {
+      console.warn('Could not start speech recognition:', e);
+    }
+  }
+
+  function stopLiveSpeechRecognition() {
+    if (liveSpeechRec) {
+      try { liveSpeechRec.stop(); } catch (_) {}
+      liveSpeechRec = null;
+    }
+  }
+
+  let _aiNotesSetupDone = false;
+  function setupAiNotesAndDrive() {
+    if (!_aiNotesSetupDone) {
+      _aiNotesSetupDone = true;
+      $('btnAiNotesToggle').onclick = () => {
+        isAiNotesActive = !isAiNotesActive;
+        $('lblAiNotes').textContent = isAiNotesActive ? 'AI Notes: ON' : 'AI Notes: OFF';
+        $('btnAiNotesToggle').style.borderColor = isAiNotesActive ? '#3b82f6' : '#ef4444';
+        $('btnAiNotesToggle').style.color = isAiNotesActive ? '#93c5fd' : '#fca5a5';
+        toast(isAiNotesActive ? '📝 AI Notes capturing resumed' : '⏸️ AI Notes paused for confidential discussion');
+        if (isAiNotesActive) startLiveSpeechRecognition();
+        else stopLiveSpeechRecognition();
+      };
+
+      $('btnLiveNotesChip')?.addEventListener('click', () => {
+        const pop = $('aiNotesLivePop');
+        if (pop) {
+          pop.classList.toggle('hidden');
+          if (!pop.classList.contains('hidden')) pop.classList.remove('minimized');
+        }
+      });
+
+      $('aiLivePopMinimize')?.addEventListener('click', () => {
+        $('aiNotesLivePop')?.classList.toggle('minimized');
+      });
+
+      $('aiLivePopClose')?.addEventListener('click', () => {
+        $('aiNotesLivePop')?.classList.add('hidden');
+      });
+
+      function openDriveModal() {
+        const saved = store.get('tm_drive_folder') || '';
+        if ($('inputDriveModal')) $('inputDriveModal').value = saved;
+        if (saved) {
+          if ($('btnOpenDriveModal')) {
+            $('btnOpenDriveModal').style.display = 'inline-flex';
+            $('btnOpenDriveModal').href = saved.startsWith('http') ? saved : `https://drive.google.com/drive/folders/${saved}`;
+          }
+          if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Currently synced to folder';
+        } else {
+          if ($('btnOpenDriveModal')) $('btnOpenDriveModal').style.display = 'none';
+          if ($('driveModalStatus')) $('driveModalStatus').textContent = '';
+        }
+        $('modalDrive')?.classList.remove('hidden');
       }
-    });
+
+      $('btnDriveFolder').onclick = openDriveModal;
+      $('closeModalDrive')?.addEventListener('click', () => $('modalDrive')?.classList.add('hidden'));
+
+      $('btnSaveDriveModal')?.addEventListener('click', async () => {
+        const url = ($('inputDriveModal')?.value || '').trim();
+        if (!url) {
+          if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Please enter a Google Drive folder link or ID';
+          return;
+        }
+        store.set('tm_drive_folder', url);
+        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Syncing folder...';
+        try {
+          await api('/api/drive/sync', { method: 'POST', body: { sessionId: recSessionId || 'general', driveFolderUrl: url } });
+          if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Google Drive folder linked! Meeting recordings, notes & attendance will sync here ✓';
+          toast('📁 Google Drive folder linked and verified');
+          if ($('aiLiveDriveStatus')) $('aiLiveDriveStatus').textContent = '📁 Auto-syncing to Google Drive';
+          if ($('btnOpenDriveModal')) {
+            $('btnOpenDriveModal').style.display = 'inline-flex';
+            $('btnOpenDriveModal').href = url.startsWith('http') ? url : `https://drive.google.com/drive/folders/${url}`;
+          }
+          setTimeout(() => $('modalDrive')?.classList.add('hidden'), 1500);
+        } catch (e) {
+          if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Saved locally: ' + e.message;
+        }
+      });
+    }
+
+    const savedFolder = store.get('tm_drive_folder');
+    if ($('aiLiveDriveStatus')) {
+      $('aiLiveDriveStatus').textContent = savedFolder ? '📁 Auto-syncing to Google Drive' : '📁 Link Drive for backup';
+    }
   }
 
   // ---------- 11. FLOATING BOT & DYNAMIC KEY ROTATION ----------
@@ -1410,12 +1566,36 @@
       setTimeout(takeAttendeeSnapshot, 1500);
     }
   };
-  $('shareBtn').onclick = async () => {
+  async function toggleScreenShare() {
+    if (!room || !room.localParticipant) return;
+    if (room.localParticipant.isScreenShareEnabled) {
+      await room.localParticipant.setScreenShareEnabled(false);
+      syncButtons();
+      render();
+      return;
+    }
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      toast('📱 Screen sharing is not supported in this mobile browser. Please open in Safari or Chrome.', 6000);
+      return;
+    }
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 820;
+    const opts = isMobile ? { audio: false } : { audio: true, selfBrowserSurface: 'exclude' };
     try {
-      await room.localParticipant.setScreenShareEnabled(!room.localParticipant.isScreenShareEnabled, { audio: true, selfBrowserSurface: 'exclude' });
-    } catch (e) { if (e.name !== 'NotAllowedError') toast('Screen share failed: ' + e.message); }
-    syncButtons(); render();
-  };
+      await room.localParticipant.setScreenShareEnabled(true, opts);
+    } catch (e) {
+      if (e.name === 'NotAllowedError') return;
+      try {
+        await room.localParticipant.setScreenShareEnabled(true, {});
+      } catch (err2) {
+        if (err2.name !== 'NotAllowedError') {
+          toast('Screen share failed: ' + (err2.message || 'Permission denied'));
+        }
+      }
+    }
+    syncButtons();
+    render();
+  }
+  $('shareBtn').onclick = toggleScreenShare;
   $('leaveBtn').onclick = () => room.disconnect();
 
   $('copyLinkBtn').onclick = async () => {
@@ -1432,6 +1612,7 @@
     let msg; try { msg = JSON.parse(dec.decode(payload)); } catch { return; }
     const who = participant?.name || participant?.identity || 'Someone';
     if (msg.type === 'chat') { addChat(who, msg.text, false); }
+    if (msg.type === 'live_note') { addLiveAiNote(msg.item, false); }
     if (msg.type === 'hand') {
       msg.up ? raisedHands.add(participant.identity) : raisedHands.delete(participant.identity);
       if (msg.up) {
@@ -1502,16 +1683,20 @@
   $('closeMobileSheet')?.addEventListener('click', closeMobileSheet);
   $('mobileSheetBackdrop')?.addEventListener('click', closeMobileSheet);
 
-  $('sheetShareBtn')?.addEventListener('click', () => { closeMobileSheet(); $('shareBtn')?.click(); });
+  $('sheetShareBtn')?.addEventListener('click', async () => { closeMobileSheet(); await toggleScreenShare(); });
   $('sheetBgBtn')?.addEventListener('click', () => { closeMobileSheet(); $('bgBtn')?.click(); });
   $('sheetBoardBtn')?.addEventListener('click', () => { closeMobileSheet(); $('boardBtn')?.click(); });
   $('sheetAudioRecBtn')?.addEventListener('click', () => { closeMobileSheet(); $('audioRecBtn')?.click(); });
   $('sheetLocalRecBtn')?.addEventListener('click', () => { closeMobileSheet(); $('localRecBtn')?.click(); });
   $('sheetRecBtn')?.addEventListener('click', () => { closeMobileSheet(); $('recBtn')?.click(); });
   $('sheetInfoBtn')?.addEventListener('click', () => { closeMobileSheet(); $('infoBtn')?.click(); });
-  $('sheetAiNotesBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnAiNotesToggle')?.click(); });
+  $('sheetAiNotesBtn')?.addEventListener('click', () => {
+    closeMobileSheet();
+    $('aiNotesLivePop')?.classList.remove('hidden');
+    $('aiNotesLivePop')?.classList.remove('minimized');
+  });
   $('sheetDriveBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnDriveFolder')?.click(); });
-  $('sheetAttendanceBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnExportAttendance')?.click(); });
+  $('sheetAttendanceBtn')?.addEventListener('click', () => { closeMobileSheet(); syncAttendanceToDrive(); });
 
   $('mobileTopPeopleBtn')?.addEventListener('click', () => $('peopleBtn')?.click());
   $('mobileTopChatBtn')?.addEventListener('click', () => $('chatBtn')?.click());
@@ -1706,16 +1891,25 @@
     const rec = new MediaRecorder(mixed, { mimeType: mime, videoBitsPerSecond: 2_500_000 });
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     rec.onstop = () => {
-      const ext = (mime || '').includes('mp4') ? 'mp4' : 'webm';
       const blob = new Blob(chunks, { type: mime });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${roomName}_screen_${new Date().toISOString().replace(/[:.]/g, '-')}.${ext}`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
       display.getTracks().forEach((t) => t.stop());
       ctx.close();
-      toast('Screen recording saved to Downloads');
+
+      toast('📁 Syncing screen recording to Google Drive...');
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async () => {
+        try {
+          const driveFolder = store.get('tm_drive_folder') || '';
+          await api('/api/recordings/upload', {
+            method: 'POST',
+            body: { room: roomName, type: 'screen', dataBase64: reader.result, driveFolder }
+          });
+          toast('📁 Screen recording saved directly to Google Drive! ✓', 5000);
+        } catch (err) {
+          toast('Screen recording sync to Drive error: ' + err.message);
+        }
+      };
     };
     display.getVideoTracks()[0].onended = () => stopLocalRecording();
     rec.start(1000);
@@ -1750,11 +1944,13 @@
 
   const BG_SCENES = [
     { id: 'boardroom', label: '🏢 Executive Boardroom', name: 'Boardroom', desc: 'Sleek walnut table & floor-to-ceiling glass' },
+    { id: 'techcampus', label: '🏢 Tech HQ Campus', name: 'Tech HQ', desc: 'Modern glass atrium, interior bamboo & acoustic baffles' },
     { id: 'skyline', label: '🌃 City Skyline', name: 'Skyline', desc: 'Metropolitan high-rise twilight panorama' },
     { id: 'study', label: '🪵 Modern Study', name: 'Study', desc: 'Oak acoustic slats & ambient warm lighting' },
     { id: 'scandi', label: '🌿 Scandinavian', name: 'Scandinavian', desc: 'Airy daylight, birch wood & indoor greenery' },
     { id: 'loft', label: '🧱 Creative Loft', name: 'Loft', desc: 'Exposed warm brick & vintage pendant glow' },
-    { id: 'penthouse', label: '🏛️ Penthouse', name: 'Penthouse', desc: 'Calacatta marble & brushed bronze inlay' }
+    { id: 'penthouse', label: '🏛️ Penthouse', name: 'Penthouse', desc: 'Calacatta marble & brushed bronze inlay' },
+    { id: 'privacyglass', label: '🪟 Frosted Privacy Glass', name: 'Privacy Glass', desc: 'Corporate diffused architectural glass with soft lighting' }
   ];
 
   const sameBg = (a, b) => (a?.type || 'none') === (b?.type || 'none') && (a?.value ?? null) === (b?.value ?? null);
@@ -2089,6 +2285,70 @@
       coveGrad.addColorStop(1, 'transparent');
       g.fillStyle = coveGrad;
       g.fillRect(0, 0, 1280, 280);
+
+    } else if (id === 'techcampus') {
+      // 7. Tech HQ Campus Atrium: Steel mullions, diffused skylight, acoustic baffles & indoor flora
+      const baseGrad = g.createLinearGradient(0, 0, 1280, 720);
+      baseGrad.addColorStop(0, '#1c2128');
+      baseGrad.addColorStop(0.5, '#22272e');
+      baseGrad.addColorStop(1, '#181b20');
+      g.fillStyle = baseGrad;
+      g.fillRect(0, 0, 1280, 720);
+
+      const skyAtrium = g.createLinearGradient(0, 0, 0, 400);
+      skyAtrium.addColorStop(0, 'rgba(210, 230, 255, 0.45)');
+      skyAtrium.addColorStop(0.5, 'rgba(180, 205, 235, 0.2)');
+      skyAtrium.addColorStop(1, 'transparent');
+      g.fillStyle = skyAtrium;
+      g.fillRect(160, 0, 960, 420);
+
+      g.fillStyle = '#2d333b';
+      g.fillRect(200, 0, 18, 720);
+      g.fillRect(630, 0, 20, 720);
+      g.fillRect(1060, 0, 18, 720);
+
+      g.fillStyle = '#373e47';
+      for (let y = 30; y < 220; y += 32) {
+        g.fillRect(120, y, 1040, 8);
+      }
+
+      g.fillStyle = '#1e382b';
+      g.beginPath();
+      g.ellipse(140, 620, 110, 130, 0, 0, Math.PI * 2);
+      g.ellipse(1140, 620, 120, 140, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#29523d';
+      g.beginPath();
+      g.ellipse(160, 560, 80, 110, 0.2, 0, Math.PI * 2);
+      g.ellipse(1110, 550, 90, 110, -0.2, 0, Math.PI * 2);
+      g.fill();
+
+    } else if (id === 'privacyglass') {
+      // 8. Frosted Privacy Glass: Diffused corporate studio with warm spotlight vignette
+      const glassGrad = g.createRadialGradient(640, 320, 40, 640, 360, 680);
+      glassGrad.addColorStop(0, '#2d3748');
+      glassGrad.addColorStop(0.4, '#1a202c');
+      glassGrad.addColorStop(0.8, '#141824');
+      glassGrad.addColorStop(1, '#0d1017');
+      g.fillStyle = glassGrad;
+      g.fillRect(0, 0, 1280, 720);
+
+      g.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      g.lineWidth = 6;
+      g.beginPath();
+      g.moveTo(320, 0); g.lineTo(320, 720);
+      g.moveTo(640, 0); g.lineTo(640, 720);
+      g.moveTo(960, 0); g.lineTo(960, 720);
+      g.moveTo(0, 240); g.lineTo(1280, 240);
+      g.moveTo(0, 480); g.lineTo(1280, 480);
+      g.stroke();
+
+      const spotGrad = g.createRadialGradient(640, 100, 10, 640, 100, 400);
+      spotGrad.addColorStop(0, 'rgba(255, 220, 160, 0.18)');
+      spotGrad.addColorStop(0.6, 'rgba(255, 200, 140, 0.05)');
+      spotGrad.addColorStop(1, 'transparent');
+      g.fillStyle = spotGrad;
+      g.fillRect(200, 0, 880, 500);
     }
 
     const dataUrl = c.toDataURL('image/jpeg', 0.88);

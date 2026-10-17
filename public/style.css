@@ -1969,6 +1969,187 @@ button, input, select {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* Floating Live AI Notes Pop-up */
+.live-notes-chip {
+  background: rgba(138, 180, 248, 0.12) !important;
+  color: var(--gm-blue-light) !important;
+  border-color: rgba(138, 180, 248, 0.3) !important;
+  font-weight: 500;
+}
+.live-notes-chip:hover {
+  background: rgba(138, 180, 248, 0.22) !important;
+}
+
+.ai-notes-live-pop {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  background: rgba(40, 41, 44, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--gm-border);
+  border-radius: var(--gm-radius-lg);
+  box-shadow: var(--gm-shadow-3);
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideUpPop 0.25s ease-out;
+}
+
+@keyframes slideUpPop {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.ai-notes-live-pop.minimized {
+  width: 220px;
+  height: auto;
+}
+.ai-notes-live-pop.minimized .ai-pop-body,
+.ai-notes-live-pop.minimized .ai-pop-footer {
+  display: none !important;
+}
+
+.ai-pop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--gm-surface-2);
+  border-bottom: 1px solid var(--gm-border-subtle);
+  user-select: none;
+}
+
+.ai-pop-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-pop-heading {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--gm-text);
+}
+
+.ai-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--gm-green);
+  background: rgba(52, 168, 83, 0.15);
+  padding: 2px 6px;
+  border-radius: var(--gm-radius-pill);
+  text-transform: uppercase;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gm-green);
+  animation: pulseGreen 1.5s infinite;
+}
+
+@keyframes pulseGreen {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(52, 168, 83, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(52, 168, 83, 0); }
+}
+
+.ai-pop-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-pop-btn {
+  background: transparent;
+  border: none;
+  color: var(--gm-text-secondary);
+  font-size: 13px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ai-pop-btn:hover {
+  background: var(--gm-surface-elevated);
+  color: var(--gm-text);
+}
+
+.ai-pop-body {
+  padding: 14px;
+  max-height: 280px;
+  overflow-y: auto;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--gm-text);
+}
+
+.ai-pop-empty {
+  text-align: center;
+  padding: 18px 8px;
+  color: var(--gm-text-secondary);
+}
+
+.ai-pop-empty .ai-pop-listening {
+  font-weight: 500;
+  color: var(--gm-blue-light);
+  margin-bottom: 4px;
+}
+
+.ai-pop-section {
+  margin-bottom: 12px;
+}
+
+.ai-sec-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--gm-text-secondary);
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.ai-pop-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-pop-list li {
+  padding: 6px 10px;
+  background: var(--gm-surface-2);
+  border-radius: var(--gm-radius-sm);
+  border-left: 3px solid var(--gm-blue-light);
+  font-size: 12px;
+  line-height: 1.35;
+  animation: fadeIn 0.2s ease-in;
+}
+
+.ai-pop-footer {
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border-top: 1px solid var(--gm-border-subtle);
+  font-size: 10.5px;
+  color: var(--gm-text-muted);
+  text-align: center;
+}
+
 /* Architectural Background Scene Cards */
 .bg-scenes-grid {
   display: grid;
@@ -2375,5 +2556,14 @@ button, input, select {
   .reaction-item-btn {
     font-size: 20px;
     padding: 2px 4px;
+  }
+
+  .ai-notes-live-pop {
+    bottom: calc(76px + env(safe-area-inset-bottom, 10px));
+    right: 12px;
+    left: 12px;
+    width: auto;
+    max-width: none;
+    max-height: 260px;
   }
 }

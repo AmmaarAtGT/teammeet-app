@@ -157,6 +157,9 @@
         <button id="btnAiNotesToggle" class="chip-btn" title="Toggle AI Notes capturing during important discussions">
           <span class="dot-ai">●</span> <span id="lblAiNotes">AI Notes: ON</span>
         </button>
+        <button id="btnLiveNotesChip" class="chip-btn live-notes-chip" title="View Live AI Notes pop-up">
+          <span class="sparkle-ai">✨</span> <span id="lblLiveNotes">Live Notes</span>
+        </button>
 
         <!-- GOOGLE DRIVE SYNC BUTTON -->
         <button id="btnDriveFolder" class="chip-btn" title="Google Drive Folder Storage">
@@ -212,8 +215,8 @@
             <div class="people-search-box">
               <input id="peopleSearch" placeholder="🔍 Search participants..." />
             </div>
-            <button id="btnExportAttendance" type="button" class="btn-attendance-export" title="Export meeting attendance report with timestamps as CSV">
-              📥 Attendance (CSV)
+            <button id="btnExportAttendance" type="button" class="btn-attendance-export" title="Sync meeting attendance report directly to Google Drive">
+              📁 Sync Attendance to Drive
             </button>
           </div>
           <ul id="peopleList" class="people"></ul>
@@ -229,7 +232,7 @@
               <option value="8">Thick Pen</option>
             </select>
             <button id="boardClear" class="btn-toolbar">Clear</button>
-            <button id="boardSave" class="btn-toolbar primary-save">💾 Save PNG</button>
+            <button id="boardSave" class="btn-toolbar primary-save">📁 Sync to Drive</button>
           </div>
           <div class="board-canvas-wrapper">
             <canvas id="whiteboardCanvas"></canvas>
@@ -387,9 +390,43 @@
           <div class="sheet-item-label">Google Drive</div>
         </button>
         <button id="sheetAttendanceBtn" class="sheet-grid-item" type="button">
-          <div class="sheet-item-icon">📥</div>
-          <div class="sheet-item-label">Attendance CSV</div>
+          <div class="sheet-item-icon">📁</div>
+          <div class="sheet-item-label">Attendance to Drive</div>
         </button>
+      </div>
+    </div>
+
+    <!-- FLOATING LIVE AI NOTES POP-UP (Real-Time Enterprise Notes) -->
+    <div id="aiNotesLivePop" class="ai-notes-live-pop hidden" role="region" aria-label="Live AI Notes">
+      <div class="ai-pop-header">
+        <div class="ai-pop-title">
+          <span class="ai-pop-sparkle">✨</span>
+          <span class="ai-pop-heading">Live AI Meeting Notes</span>
+          <span class="ai-live-indicator"><span class="pulse-dot"></span> Live</span>
+        </div>
+        <div class="ai-pop-actions">
+          <button id="btnAiPopToggleSize" class="ai-pop-btn" title="Minimize/Maximize">─</button>
+          <button id="btnAiPopClose" class="ai-pop-btn" title="Close Live Notes">✕</button>
+        </div>
+      </div>
+      <div class="ai-pop-body" id="aiPopBody">
+        <div class="ai-pop-empty" id="aiPopEmpty">
+          <p class="ai-pop-listening">Listening to conversation...</p>
+          <span class="muted small">Key takeaways, decisions, and action items will appear here live.</span>
+        </div>
+        <div class="ai-pop-content hidden" id="aiPopContent">
+          <div class="ai-pop-section">
+            <div class="ai-sec-title">📌 Key Takeaways & Discussion</div>
+            <ul id="aiPopSummaryList" class="ai-pop-list"></ul>
+          </div>
+          <div class="ai-pop-section">
+            <div class="ai-sec-title">✅ Action Items</div>
+            <ul id="aiPopActionsList" class="ai-pop-list"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="ai-pop-footer">
+        <span class="ai-pop-sync-status" id="aiPopSyncStatus">📁 Auto-syncing to Google Drive (Zero local downloads)</span>
       </div>
     </div>
 

@@ -40,7 +40,8 @@ let GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
 let PURGE_RETENTION_DAYS = parseInt(process.env.PURGE_RETENTION_DAYS || '15', 10);
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ extended: true, limit: '200mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 let egress = new EgressClient(LIVEKIT_HOST, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
@@ -469,6 +470,116 @@ app.post('/api/drive/sync', async (req, res) => {
     }
   }
   res.json({ ok: true, synced: true, driveFolder: GOOGLE_DRIVE_FOLDER_ID, result: syncResult });
+});
+
+// Universal Upload endpoint: saves client-side screen recordings, audio recordings, or whiteboard images
+// directly to the server session directory and automatically syncs to Google Drive (Zero local downloads)
+app.post('/api/recordings/upload', async (req, res) => {
+  if (!checkPasscode(req, res)) return;
+  const room = cleanRoom(req.body.room || 'dev-room');
+  const type = req.body.type || 'screen'; // 'screen' | 'audio' | 'whiteboard'
+  const dataBase64 = req.body.dataBase64;
+  const driveFolder = req.body.driveFolder || GOOGLE_DRIVE_FOLDER_ID;
+  if (!dataBase64) return res.status(400).json({ error: 'dataBase64 required' });
+
+  // Locate active session or create dedicated archive session for this room
+  let s = active.get(room);
+  let id = s ? s.id : `room_${safeId(room)}_${Date.now()}`;
+  if (!s) {
+    s = {
+      id,
+      room,
+      status: 'ready',
+      createdAt: new Date().toISOString(),
+      driveFolder: driveFolder || GOOGLE_DRIVE_FOLDER_ID || '',
+      tracks: []
+    };
+    saveSession(s);
+  }
+
+  const sessDir = sessionDir(id);
+  fs.mkdirSync(sessDir, { recursive: true });
+
+  const rawData = dataBase64.replace(/^data:[^;]+;base64,/, '');
+  const buffer = Buffer.from(rawData, 'base64');
+
+  let fileName = '';
+  if (type === 'whiteboard') {
+    fileName = 'whiteboard.png';
+  } else if (type === 'audio') {
+    fileName = 'audio_recording.webm';
+  } else {
+    fileName = 'screen_recording.webm';
+  }
+
+  fs.writeFileSync(path.join(sessDir, fileName), buffer);
+
+  // Export attendance to ensure latest records are together with recording
+  attendance.exportAttendanceForSession(room, sessDir);
+
+  // Sync session files to Google Drive
+  let syncResult = null;
+  const targetDrive = driveFolder || s.driveFolder || GOOGLE_DRIVE_FOLDER_ID;
+  if (targetDrive) {
+    try {
+      syncResult = await driveSync.syncSessionToDrive(s, sessDir, targetDrive);
+      s.driveSync = syncResult;
+      saveSession(s);
+    } catch (err) {
+      console.warn('[Upload Drive Sync Warning]', err.message);
+    }
+  }
+
+  res.json({
+    ok: true,
+    sessionId: id,
+    file: fileName,
+    syncedToDrive: Boolean(syncResult?.synced),
+    driveFolderUrl: driveSync.getDriveFolderUrl(targetDrive),
+    driveSync: syncResult
+  });
+});
+
+// Force sync attendance to Google Drive (Zero local downloads)
+app.post('/api/attendance/sync-drive', async (req, res) => {
+  if (!checkPasscode(req, res)) return;
+  const room = cleanRoom(req.body.room || 'dev-room');
+  const targetDrive = req.body.driveFolder || GOOGLE_DRIVE_FOLDER_ID;
+
+  const id = `att_${safeId(room)}_${Date.now()}`;
+  const s = {
+    id,
+    room,
+    status: 'ready',
+    createdAt: new Date().toISOString(),
+    driveFolder: targetDrive || '',
+    tracks: []
+  };
+  saveSession(s);
+
+  const sessDir = sessionDir(id);
+  const att = attendance.exportAttendanceForSession(room, sessDir);
+  s.attendance = att.records;
+
+  let syncResult = null;
+  if (targetDrive) {
+    try {
+      syncResult = await driveSync.syncSessionToDrive(s, sessDir, targetDrive);
+      s.driveSync = syncResult;
+      saveSession(s);
+    } catch (err) {
+      console.warn('[Attendance Drive Sync Warning]', err.message);
+    }
+  }
+
+  res.json({
+    ok: true,
+    sessionId: id,
+    recordsCount: att.records.length,
+    syncedToDrive: Boolean(syncResult?.synced),
+    driveFolderUrl: driveSync.getDriveFolderUrl(targetDrive),
+    driveSync: syncResult
+  });
 });
 
 app.get('/api/recording/status', (req, res) => {
