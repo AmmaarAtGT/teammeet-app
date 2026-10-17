@@ -2071,7 +2071,8 @@ button, input, select {
     padding: 16px;
   }
 
-  .lobby-stage-col, .lobby-form-col {
+  .lobby-stage-col,
+  .lobby-form-col {
     max-width: 100%;
     width: 100%;
   }
