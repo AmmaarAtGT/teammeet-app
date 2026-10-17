@@ -166,6 +166,14 @@
         <button id="copyLinkBtn" class="chip-btn" title="Copy meeting invite link">
           <span>🔗</span> Copy link
         </button>
+
+        <!-- MOBILE QUICK CHAT & PEOPLE (Visible on small screens) -->
+        <button id="mobileTopPeopleBtn" class="chip-btn mobile-top-btn" title="Participants">
+          <span>👥</span> <span id="mobileCountBadge">1</span>
+        </button>
+        <button id="mobileTopChatBtn" class="chip-btn mobile-top-btn" title="Chat">
+          <span>💬</span> <span id="mobileUnreadDot" class="unread-dot hidden"></span>
+        </button>
       </div>
     </header>
 
@@ -248,34 +256,60 @@
           <span class="ic"></span>
           <span class="lbl hidden">Camera</span>
         </button>
-        <button id="bgBtn" class="meet-btn-circle" title="Apply visual effects" aria-label="Background Effects">
+        <button id="bgBtn" class="meet-btn-circle desk-only" title="Apply visual effects" aria-label="Background Effects">
           <span class="ic"></span>
           <span class="lbl hidden">Background</span>
         </button>
-        <button id="shareBtn" class="meet-btn-circle" title="Present now" aria-label="Share Screen">
+        <button id="shareBtn" class="meet-btn-circle desk-only" title="Present now" aria-label="Share Screen">
           <span class="ic"></span>
           <span class="lbl hidden">Share</span>
         </button>
-        <button id="audioRecBtn" class="meet-btn-circle" title="High-fidelity pure audio recording" aria-label="Audio Rec">
+        <button id="audioRecBtn" class="meet-btn-circle desk-only" title="High-fidelity pure audio recording" aria-label="Audio Rec">
           <span class="ic"></span>
           <span class="lbl hidden">Audio Rec</span>
         </button>
-        <button id="localRecBtn" class="meet-btn-circle" title="Record screen directly to computer" aria-label="Screen Rec">
+        <button id="localRecBtn" class="meet-btn-circle desk-only" title="Record screen directly to computer" aria-label="Screen Rec">
           <span class="ic"></span>
           <span class="lbl hidden">Screen Rec</span>
         </button>
-        <button id="recBtn" class="meet-btn-circle" title="Server Cloud MP4 recording" aria-label="Server Rec">
+        <button id="recBtn" class="meet-btn-circle desk-only" title="Server Cloud MP4 recording" aria-label="Server Rec">
           <span class="ic"></span>
           <span class="lbl hidden">Server Rec</span>
         </button>
-        <button id="handBtn" class="meet-btn-circle" title="Raise hand" aria-label="Raise Hand">
-          <span class="ic"></span>
-          <span class="lbl hidden">Hand</span>
-        </button>
-        <button id="boardBtn" class="meet-btn-circle" title="Collaborative Whiteboard" aria-label="Whiteboard">
+
+        <!-- Hand Raise & Live Reaction Emojis -->
+        <div class="hand-reaction-group">
+          <div id="reactionTray" class="reaction-tray hidden" role="toolbar" aria-label="Emoji reactions">
+            <button type="button" class="reaction-item-btn" data-emoji="👏" title="Applause">👏</button>
+            <button type="button" class="reaction-item-btn" data-emoji="👍" title="Thumbs Up">👍</button>
+            <button type="button" class="reaction-item-btn" data-emoji="❤️" title="Heart">❤️</button>
+            <button type="button" class="reaction-item-btn" data-emoji="😂" title="Laugh">😂</button>
+            <button type="button" class="reaction-item-btn" data-emoji="😮" title="Surprised">😮</button>
+            <button type="button" class="reaction-item-btn" data-emoji="🎉" title="Celebration">🎉</button>
+          </div>
+          <button id="handBtn" class="meet-btn-circle" title="Raise hand" aria-label="Raise Hand">
+            <span class="ic"></span>
+            <span class="lbl hidden">Hand</span>
+          </button>
+          <button id="reactionPillBtn" class="reaction-pill-toggle" title="Send a reaction">
+            <span class="rx-icon">😊</span>
+          </button>
+        </div>
+
+        <button id="boardBtn" class="meet-btn-circle desk-only" title="Collaborative Whiteboard" aria-label="Whiteboard">
           <span class="ic"></span>
           <span class="lbl hidden">Whiteboard</span>
         </button>
+
+        <!-- Mobile More Options Button (⋮) -->
+        <button id="moreBtn" class="meet-btn-circle mobile-more-btn" title="More options" aria-label="More options">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <circle cx="12" cy="5" r="2.2"/>
+            <circle cx="12" cy="12" r="2.2"/>
+            <circle cx="12" cy="19" r="2.2"/>
+          </svg>
+        </button>
+
         <button id="leaveBtn" class="meet-btn-leave" title="Leave call" aria-label="Leave call">
           <span class="ic"></span>
           <span class="lbl hidden">Leave</span>
@@ -284,7 +318,7 @@
 
       <!-- Zone 3: Right (Side panel drawer toggles) -->
       <div class="bar-zone bar-right">
-        <button id="infoBtn" class="meet-btn-icon" title="Meeting details" aria-label="Meeting details">
+        <button id="infoBtn" class="meet-btn-icon desk-only" title="Meeting details" aria-label="Meeting details">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         </button>
         <button id="peopleBtn" class="meet-btn-icon" title="People" aria-label="People">
@@ -295,11 +329,58 @@
           <span class="ic"></span>
           <span id="unread" class="meet-unread-dot hidden"></span>
         </button>
-        <button id="activitiesBtn" class="meet-btn-icon" title="Activities & Recordings" aria-label="Activities">
+        <button id="activitiesBtn" class="meet-btn-icon desk-only" title="Activities & Recordings" aria-label="Activities">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
         </button>
       </div>
     </footer>
+
+    <!-- MOBILE MORE OPTIONS BOTTOM SHEET MODAL -->
+    <div id="mobileSheetBackdrop" class="sheet-backdrop hidden"></div>
+    <div id="mobileMoreSheet" class="mobile-sheet hidden" role="dialog" aria-label="More options">
+      <div class="sheet-drag-handle"></div>
+      <div class="sheet-header">
+        <span class="sheet-title">More options</span>
+        <button id="closeMobileSheet" class="btn-icon-close" title="Close">✕</button>
+      </div>
+      <div class="sheet-body-grid">
+        <button id="sheetShareBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">🖥️</div>
+          <div class="sheet-item-label">Share screen</div>
+        </button>
+        <button id="sheetBgBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">✨</div>
+          <div class="sheet-item-label">Visual effects</div>
+        </button>
+        <button id="sheetBoardBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">📋</div>
+          <div class="sheet-item-label">Whiteboard</div>
+        </button>
+        <button id="sheetAudioRecBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">🎙️</div>
+          <div class="sheet-item-label">Audio record</div>
+        </button>
+        <button id="sheetLocalRecBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">⏺️</div>
+          <div class="sheet-item-label">Screen record</div>
+        </button>
+        <button id="sheetRecBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">🔴</div>
+          <div class="sheet-item-label">Server record</div>
+        </button>
+        <button id="sheetInfoBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">ℹ️</div>
+          <div class="sheet-item-label">Meeting details</div>
+        </button>
+        <button id="sheetAiNotesBtn" class="sheet-grid-item" type="button">
+          <div class="sheet-item-icon">📝</div>
+          <div class="sheet-item-label">AI Notes</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- FLOATING REACTION EMOJIS LAYER -->
+    <div id="floatingReactionContainer" class="floating-reactions-layer" aria-hidden="true"></div>
   </section>
 
   <!-- PROFESSIONAL VIRTUAL BACKGROUND PANEL -->

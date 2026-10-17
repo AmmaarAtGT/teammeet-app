@@ -92,7 +92,7 @@
         wakeLock = await navigator.wakeLock.request('screen');
         document.addEventListener('visibilitychange', async () => {
           if (wakeLock !== null && document.visibilityState === 'visible') {
-            wakeLock = await navigator.wakeLock.request('screen');
+            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
           }
         });
       }
@@ -105,31 +105,23 @@
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
-      audioKeepAliveCtx = new AudioCtx();
+      if (!audioKeepAliveCtx) audioKeepAliveCtx = new AudioCtx();
+      if (audioKeepAliveCtx.state === 'suspended') audioKeepAliveCtx.resume().catch(() => {});
       const osc = audioKeepAliveCtx.createOscillator();
       const gain = audioKeepAliveCtx.createGain();
-      gain.gain.value = 0.0001; // Inaudible keep-alive signal to keep phone audio route active
+      gain.gain.value = 0.00005; // Inaudible keep-alive signal to keep phone audio route active
       osc.connect(gain);
       gain.connect(audioKeepAliveCtx.destination);
       osc.start();
     } catch (e) {}
   }
 
-  function unlockMobileAudio() {
-    if (room && room.audioContext && room.audioContext.state === 'suspended') {
-      room.audioContext.resume();
-    }
-    if (audioKeepAliveCtx && audioKeepAliveCtx.state === 'suspended') {
-      audioKeepAliveCtx.resume();
-    }
-    room?.startAudio();
-    $('mobileAudioBanner')?.classList.add('hidden');
-  }
-
-  // Handle phone screen unlocking or tab switching
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && room) {
-      unlockMobileAudio();
+  async function unlockMobileAudio() {
+    if (room) {
+      if (room.audioContext && room.audioContext.state === 'suspended') {
+        try { await room.audioContext.resume(); } catch (e) {}
+      }
+      try { await room.startAudio(); } catch (e) {}
       room.remoteParticipants.forEach((p) => {
         p.audioTrackPublications.forEach((pub) => {
           if (pub.track && pub.track.attachedElements) {
@@ -138,9 +130,108 @@
         });
       });
     }
+    if (audioKeepAliveCtx && audioKeepAliveCtx.state === 'suspended') {
+      try { await audioKeepAliveCtx.resume(); } catch (e) {}
+    }
+    $('mobileAudioBanner')?.classList.add('hidden');
+  }
+
+  // Handle phone screen unlocking, tab switching, and window focus
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && room) {
+      unlockMobileAudio();
+      keepPhoneAwake();
+    }
+  });
+  window.addEventListener('pageshow', () => {
+    if (room) {
+      unlockMobileAudio();
+      keepPhoneAwake();
+    }
+  });
+  window.addEventListener('focus', () => {
+    if (room) unlockMobileAudio();
   });
   document.addEventListener('touchstart', unlockMobileAudio, { passive: true });
   document.addEventListener('click', unlockMobileAudio, { passive: true });
+
+  // Web Audio Corporate Dual-Tone Hand Raise Chime
+  function playHandRaiseChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const now = ctx.currentTime;
+
+      // Note 1: 523.25 Hz (C5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, now);
+      gain1.gain.setValueAtTime(0, now);
+      gain1.gain.linearRampToValueAtTime(0.18, now + 0.02);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.2);
+
+      // Note 2: 659.25 Hz (E5)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(659.25, now + 0.12);
+      gain2.gain.setValueAtTime(0, now + 0.12);
+      gain2.gain.linearRampToValueAtTime(0.22, now + 0.14);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.6);
+
+      setTimeout(() => ctx.close().catch(() => {}), 800);
+    } catch (e) {
+      console.warn('Hand chime synthesis error:', e);
+    }
+  }
+
+  // Floating Reaction Emojis & Participant Tile Badges
+  function triggerReaction(emoji, who, identity) {
+    // 1. Floating physics bubble
+    const container = $('floatingReactionContainer');
+    if (container) {
+      const bubble = document.createElement('div');
+      bubble.className = 'floating-bubble';
+      const randomLeft = 15 + Math.random() * 70;
+      bubble.style.left = `${randomLeft}%`;
+      bubble.innerHTML = `
+        <span class="bubble-emoji">${emoji}</span>
+        <span class="bubble-who">${escapeHtml(who || 'Someone')}</span>
+      `;
+      container.appendChild(bubble);
+      setTimeout(() => bubble.remove(), 3200);
+    }
+
+    // 2. Participant tile reaction badge
+    if (identity) {
+      const tile = document.querySelector(`.tile[data-identity="${CSS.escape(identity)}"]`);
+      if (tile) {
+        let badge = tile.querySelector('.tile-reaction-badge');
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.className = 'tile-reaction-badge';
+          tile.appendChild(badge);
+        }
+        badge.textContent = emoji;
+        badge.classList.remove('hidden');
+        clearTimeout(badge._rxTimeout);
+        badge._rxTimeout = setTimeout(() => {
+          badge?.remove();
+        }, 3500);
+      }
+    }
+  }
 
   // ---------- 2. HARDWARE DEVICE DETECTION (External Webcam Fix) ----------
   // ---------- 2. HARDWARE DEVICE DETECTION (External Webcam Fix) ----------
@@ -556,7 +647,8 @@
   function updateParticipantCount() {
     if (!room) return;
     const count = room.remoteParticipants.size + 1;
-    $('countBadge').textContent = `${count}`;
+    if ($('countBadge')) $('countBadge').textContent = `${count}`;
+    if ($('mobileCountBadge')) $('mobileCountBadge').textContent = `${count}`;
   }
 
   function onDisconnected() {
@@ -652,12 +744,10 @@
     const screens = visibleTiles.filter((t) => t.screen);
     const focusKey = pinnedKey && visibleTiles.some((t) => t.key === pinnedKey) ? pinnedKey : screens[0]?.key || null;
     if (pinnedKey && !visibleTiles.some((t) => t.key === pinnedKey)) pinnedKey = null;
-    grid.classList.toggle('has-screen', !!focusKey);
 
     const keep = new Set(visibleTiles.map((t) => t.key));
-    [...grid.children].forEach((el) => { if (!keep.has(el.dataset.key)) el.remove(); });
 
-    visibleTiles.forEach((t) => {
+    function createOrUpdateTile(t, parentContainer, isScreenFocus) {
       let el = grid.querySelector(`[data-key="${CSS.escape(t.key)}"]`);
       if (!el) {
         el = document.createElement('div');
@@ -670,10 +760,12 @@
           <button class="pin">Pin</button>
           <div class="name"><span class="quality"></span><span class="mic"></span><span class="nm"></span></div>`;
         el.querySelector('.pin').onclick = () => { pinnedKey = pinnedKey === t.key ? null : t.key; render(); };
-        grid.appendChild(el);
+      }
+      if (el.parentElement !== parentContainer) {
+        parentContainer.appendChild(el);
       }
       el.classList.toggle('local', t.isLocal);
-      el.classList.toggle('screen', t.key === focusKey);
+      el.classList.toggle('screen', isScreenFocus);
       const video = el.querySelector('video');
       if (t.video) {
         if (el._track !== t.video) { el._track?.detach(video); t.video.attach(video); el._track = t.video; }
@@ -707,13 +799,65 @@
       el.querySelector('.pin').textContent = pinnedKey === t.key ? 'Unpin' : 'Pin';
       const q = el.querySelector('.quality');
       q.className = 'quality' + (t.p.connectionQuality === ConnectionQuality.Poor ? ' poor' : t.p.connectionQuality === ConnectionQuality.Lost ? ' lost' : '');
-    });
+      return el;
+    }
 
     if (focusKey) {
-      const f = grid.querySelector(`[data-key="${CSS.escape(focusKey)}"]`);
-      if (f && grid.firstChild !== f) grid.prepend(f);
+      grid.classList.add('has-screen');
+      let screenStage = $('screenStage');
+      if (!screenStage) {
+        screenStage = document.createElement('div');
+        screenStage.id = 'screenStage';
+        screenStage.className = 'screen-stage';
+        grid.prepend(screenStage);
+      }
+      let filmstrip = $('filmstrip');
+      if (!filmstrip) {
+        filmstrip = document.createElement('div');
+        filmstrip.id = 'filmstrip';
+        filmstrip.className = 'participant-filmstrip';
+        grid.appendChild(filmstrip);
+      }
+
+      visibleTiles.forEach((t) => {
+        const isScreenFocus = (t.key === focusKey);
+        const parent = isScreenFocus ? screenStage : filmstrip;
+        createOrUpdateTile(t, parent, isScreenFocus);
+      });
+
+      [...screenStage.children, ...filmstrip.children].forEach((el) => {
+        if (!keep.has(el.dataset.key)) el.remove();
+      });
+
+      grid.querySelectorAll('.tile').forEach((el) => {
+        el.style.width = '';
+        el.style.height = '';
+        el.classList.remove('small-tile', 'xsmall-tile');
+      });
+    } else {
+      grid.classList.remove('has-screen');
+      const screenStage = $('screenStage');
+      if (screenStage) {
+        [...screenStage.children].forEach(el => grid.appendChild(el));
+        screenStage.remove();
+      }
+      const filmstrip = $('filmstrip');
+      if (filmstrip) {
+        [...filmstrip.children].forEach(el => grid.appendChild(el));
+        filmstrip.remove();
+      }
+
+      visibleTiles.forEach((t) => {
+        createOrUpdateTile(t, grid, false);
+      });
+
+      [...grid.children].forEach((el) => {
+        if (!keep.has(el.dataset.key)) el.remove();
+      });
+
+      layoutGrid(visibleTiles.length);
     }
-    layoutGrid(focusKey ? 0 : visibleTiles.length);
+
     renderPeople();
   }
 
@@ -1116,8 +1260,14 @@
     if (msg.type === 'chat') { addChat(who, msg.text, false); }
     if (msg.type === 'hand') {
       msg.up ? raisedHands.add(participant.identity) : raisedHands.delete(participant.identity);
-      if (msg.up) toast(`✋ ${who} raised their hand`);
+      if (msg.up) {
+        toast(`✋ ${who} raised their hand`);
+        playHandRaiseChime();
+      }
       render();
+    }
+    if (msg.type === 'reaction') {
+      triggerReaction(msg.emoji, who, participant?.identity);
     }
     if (msg.type === 'rec') { sysMsg(`${who} ${msg.on ? 'started' : 'stopped'} recording`); refreshRecordingStatus(); }
     if (msg.type === 'wb_draw' && window._wbDraw) {
@@ -1132,9 +1282,63 @@
     handRaised = !handRaised;
     handRaised ? raisedHands.add(room.localParticipant.identity) : raisedHands.delete(room.localParticipant.identity);
     $('handBtn').classList.toggle('active', handRaised);
+    if (handRaised) {
+      playHandRaiseChime();
+    }
     await send({ type: 'hand', up: handRaised });
     render();
   };
+
+  // Reaction Tray Toggling & Emoji Click Handlers
+  $('reactionPillBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    $('reactionTray')?.classList.toggle('hidden');
+  });
+
+  document.querySelectorAll('.reaction-item-btn').forEach((btn) => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const emoji = btn.dataset.emoji;
+      if (!emoji || !room) return;
+      $('reactionTray')?.classList.add('hidden');
+      const myName = room.localParticipant.name || 'You';
+      const myId = room.localParticipant.identity;
+      triggerReaction(emoji, myName, myId);
+      await send({ type: 'reaction', emoji, who: myName, id: myId });
+    };
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.hand-reaction-group')) {
+      $('reactionTray')?.classList.add('hidden');
+    }
+  });
+
+  // Mobile More Options Bottom Sheet Handlers
+  const openMobileSheet = () => {
+    $('mobileSheetBackdrop')?.classList.remove('hidden');
+    $('mobileMoreSheet')?.classList.remove('hidden');
+  };
+  const closeMobileSheet = () => {
+    $('mobileSheetBackdrop')?.classList.add('hidden');
+    $('mobileMoreSheet')?.classList.add('hidden');
+  };
+
+  $('moreBtn')?.addEventListener('click', openMobileSheet);
+  $('closeMobileSheet')?.addEventListener('click', closeMobileSheet);
+  $('mobileSheetBackdrop')?.addEventListener('click', closeMobileSheet);
+
+  $('sheetShareBtn')?.addEventListener('click', () => { closeMobileSheet(); $('shareBtn')?.click(); });
+  $('sheetBgBtn')?.addEventListener('click', () => { closeMobileSheet(); $('bgBtn')?.click(); });
+  $('sheetBoardBtn')?.addEventListener('click', () => { closeMobileSheet(); $('boardBtn')?.click(); });
+  $('sheetAudioRecBtn')?.addEventListener('click', () => { closeMobileSheet(); $('audioRecBtn')?.click(); });
+  $('sheetLocalRecBtn')?.addEventListener('click', () => { closeMobileSheet(); $('localRecBtn')?.click(); });
+  $('sheetRecBtn')?.addEventListener('click', () => { closeMobileSheet(); $('recBtn')?.click(); });
+  $('sheetInfoBtn')?.addEventListener('click', () => { closeMobileSheet(); $('infoBtn')?.click(); });
+  $('sheetAiNotesBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnAiNotesToggle')?.click(); });
+
+  $('mobileTopPeopleBtn')?.addEventListener('click', () => $('peopleBtn')?.click());
+  $('mobileTopChatBtn')?.addEventListener('click', () => $('chatBtn')?.click());
 
   function addChat(who, text, mine) {
     const log = $('chatLog');
@@ -1145,7 +1349,11 @@
     div.querySelector('.body').textContent = text;
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
-    if (!mine && $('sidePanel').classList.contains('hidden')) { unread++; $('unread').classList.remove('hidden'); }
+    if (!mine && $('sidePanel').classList.contains('hidden')) {
+      unread++;
+      $('unread').classList.remove('hidden');
+      $('mobileUnreadDot')?.classList.remove('hidden');
+    }
   }
 
   function sysMsg(text) {
@@ -1171,7 +1379,11 @@
     ['chat', 'people', 'board', 'recs'].forEach((t) => $('tab-' + t).classList.toggle('hidden', t !== name));
     if (name === 'recs') loadRecordings();
     if (name === 'people') renderPeople();
-    if (name === 'chat') { unread = 0; $('unread').classList.add('hidden'); }
+    if (name === 'chat') {
+      unread = 0;
+      $('unread').classList.add('hidden');
+      $('mobileUnreadDot')?.classList.add('hidden');
+    }
   }
   document.querySelectorAll('.tab[data-tab]').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
 
@@ -1360,27 +1572,351 @@
   ];
 
   const BG_SCENES = [
-    { label: '🏢 Boardroom', color: '#1e2430', name: 'Boardroom' },
-    { label: '🎨 Design Loft', color: '#25211e', name: 'Loft' },
-    { label: '🌃 City Skyline', color: '#0d131f', name: 'Skyline' },
-    { label: '📚 Warm Library', color: '#241a15', name: 'Library' }
+    { id: 'boardroom', label: '🏢 Executive Boardroom', name: 'Boardroom', desc: 'Sleek walnut table & floor-to-ceiling glass' },
+    { id: 'skyline', label: '🌃 City Skyline', name: 'Skyline', desc: 'Metropolitan high-rise twilight panorama' },
+    { id: 'study', label: '🪵 Modern Study', name: 'Study', desc: 'Oak acoustic slats & ambient warm lighting' },
+    { id: 'scandi', label: '🌿 Scandinavian', name: 'Scandinavian', desc: 'Airy daylight, birch wood & indoor greenery' },
+    { id: 'loft', label: '🧱 Creative Loft', name: 'Loft', desc: 'Exposed warm brick & vintage pendant glow' },
+    { id: 'penthouse', label: '🏛️ Penthouse', name: 'Penthouse', desc: 'Calacatta marble & brushed bronze inlay' }
   ];
 
   const sameBg = (a, b) => (a?.type || 'none') === (b?.type || 'none') && (a?.value ?? null) === (b?.value ?? null);
   const localCamTrack = () => room?.localParticipant.getTrackPublication(Track.Source.Camera)?.track || null;
 
-  function renderSceneCanvas(color) {
+  const _bgSceneCache = new Map();
+
+  function renderArchitecturalScene(id) {
+    if (_bgSceneCache.has(id)) return _bgSceneCache.get(id);
+
     const c = document.createElement('canvas');
     c.width = 1280; c.height = 720;
     const g = c.getContext('2d');
-    g.fillStyle = color;
-    g.fillRect(0, 0, c.width, c.height);
-    const grad = g.createLinearGradient(0, 0, c.width, c.height);
-    grad.addColorStop(0, 'rgba(255,255,255,0.08)');
-    grad.addColorStop(1, 'rgba(0,0,0,0.3)');
-    g.fillStyle = grad;
-    g.fillRect(0, 0, c.width, c.height);
-    return c.toDataURL('image/png');
+
+    if (id === 'boardroom') {
+      // 1. Executive Boardroom: Sleek walnut table, glass partition, warm recessed lights
+      const wallGrad = g.createLinearGradient(0, 0, 1280, 720);
+      wallGrad.addColorStop(0, '#1a1f2c');
+      wallGrad.addColorStop(0.6, '#131722');
+      wallGrad.addColorStop(1, '#0e111a');
+      g.fillStyle = wallGrad;
+      g.fillRect(0, 0, 1280, 720);
+
+      // Glass window wall on the right looking out
+      const winGrad = g.createLinearGradient(700, 0, 1280, 720);
+      winGrad.addColorStop(0, 'rgba(64, 90, 130, 0.25)');
+      winGrad.addColorStop(0.5, 'rgba(30, 50, 80, 0.4)');
+      winGrad.addColorStop(1, 'rgba(15, 25, 45, 0.6)');
+      g.fillStyle = winGrad;
+      g.fillRect(720, 0, 560, 520);
+
+      // Architectural vertical mullions & transom
+      g.fillStyle = '#222838';
+      g.fillRect(720, 0, 16, 520);
+      g.fillRect(1000, 0, 16, 520);
+      g.fillRect(1270, 0, 10, 520);
+      g.fillRect(720, 260, 560, 14);
+
+      // Distant building silhouettes outside window
+      g.fillStyle = 'rgba(20, 30, 50, 0.7)';
+      g.fillRect(760, 200, 70, 280);
+      g.fillRect(850, 140, 90, 340);
+      g.fillRect(960, 220, 60, 260);
+      g.fillRect(1040, 170, 80, 310);
+      g.fillRect(1140, 240, 100, 240);
+
+      // Window dots (city lights)
+      g.fillStyle = 'rgba(255, 220, 140, 0.4)';
+      for (let bx = 770; bx < 1240; bx += 32) {
+        for (let by = 180; by < 460; by += 28) {
+          if (Math.sin(bx * by) > 0.1) {
+            g.fillRect(bx, by, 4, 6);
+          }
+        }
+      }
+
+      // Ceiling recessed LED linear downlights
+      const ceilGrad = g.createLinearGradient(0, 0, 0, 120);
+      ceilGrad.addColorStop(0, '#242b3d');
+      ceilGrad.addColorStop(1, 'transparent');
+      g.fillStyle = ceilGrad;
+      g.fillRect(0, 0, 1280, 120);
+
+      g.fillStyle = 'rgba(255, 240, 210, 0.85)';
+      g.shadowColor = 'rgba(255, 220, 160, 0.6)';
+      g.shadowBlur = 18;
+      g.fillRect(120, 16, 300, 6);
+      g.fillRect(480, 16, 320, 6);
+      g.fillRect(860, 16, 300, 6);
+      g.shadowBlur = 0;
+
+      // Dark polished walnut boardroom table in foreground
+      const tableGrad = g.createLinearGradient(0, 500, 0, 720);
+      tableGrad.addColorStop(0, '#2b1d14');
+      tableGrad.addColorStop(0.3, '#1c130d');
+      tableGrad.addColorStop(1, '#0e0906');
+      g.fillStyle = tableGrad;
+      g.beginPath();
+      g.moveTo(0, 540);
+      g.lineTo(1280, 520);
+      g.lineTo(1280, 720);
+      g.lineTo(0, 720);
+      g.closePath();
+      g.fill();
+
+      // Specular bevel highlight
+      g.strokeStyle = 'rgba(255, 230, 200, 0.25)';
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(0, 540);
+      g.lineTo(1280, 520);
+      g.stroke();
+
+    } else if (id === 'skyline') {
+      // 2. Metropolitan Skyline Dusk: Twilight gradient, skyscrapers, window mullions
+      const skyGrad = g.createLinearGradient(0, 0, 0, 600);
+      skyGrad.addColorStop(0, '#0a0e1c');
+      skyGrad.addColorStop(0.45, '#201633');
+      skyGrad.addColorStop(0.8, '#542638');
+      skyGrad.addColorStop(1, '#944838');
+      g.fillStyle = skyGrad;
+      g.fillRect(0, 0, 1280, 720);
+
+      // Skyscraper towers (3 depth layers)
+      g.fillStyle = '#161326';
+      for (let i = 0; i < 18; i++) {
+        const tw = 50 + (i % 4) * 20;
+        const th = 260 + ((i * 37) % 220);
+        const tx = i * 75 - 20;
+        g.fillRect(tx, 600 - th, tw, th);
+      }
+      g.fillStyle = '#100c1e';
+      for (let i = 0; i < 12; i++) {
+        const tw = 70 + (i % 3) * 25;
+        const th = 320 + ((i * 47) % 200);
+        const tx = i * 110 + 10;
+        g.fillRect(tx, 620 - th, tw, th);
+        if (i % 2 === 0) {
+          g.fillRect(tx + tw / 2 - 2, 620 - th - 40, 4, 40);
+        }
+      }
+      g.fillStyle = '#080611';
+      for (let i = 0; i < 8; i++) {
+        const tw = 100 + (i % 4) * 30;
+        const th = 380 + ((i * 59) % 180);
+        const tx = i * 170 - 10;
+        g.fillRect(tx, 680 - th, tw, th);
+      }
+
+      // Lit windows
+      for (let x = 20; x < 1260; x += 16) {
+        for (let y = 280; y < 640; y += 18) {
+          const rand = Math.sin(x * 9.1 + y * 7.3);
+          if (rand > 0.45) {
+            g.fillStyle = rand > 0.8 ? 'rgba(255, 230, 160, 0.75)' : 'rgba(140, 210, 255, 0.55)';
+            g.fillRect(x, y, 4, 6);
+          }
+        }
+      }
+
+      // Modern dark architectural window framing
+      g.fillStyle = '#121318';
+      g.fillRect(0, 0, 1280, 24);
+      g.fillRect(0, 660, 1280, 60);
+      g.fillRect(410, 0, 22, 720);
+      g.fillRect(850, 0, 22, 720);
+
+    } else if (id === 'study') {
+      // 3. Modern Minimalist Study: Oak acoustic slats & ambient warm lighting
+      g.fillStyle = '#26282c';
+      g.fillRect(0, 0, 1280, 720);
+
+      // Acoustic oak slat wall on left
+      g.fillStyle = '#18191c';
+      g.fillRect(0, 0, 480, 720);
+
+      const slatWidth = 18;
+      const slatGap = 14;
+      for (let x = 16; x < 460; x += slatWidth + slatGap) {
+        const slatGrad = g.createLinearGradient(x, 0, x + slatWidth, 0);
+        slatGrad.addColorStop(0, '#9e734c');
+        slatGrad.addColorStop(0.5, '#ba8a5d');
+        slatGrad.addColorStop(1, '#855d3a');
+        g.fillStyle = slatGrad;
+        g.fillRect(x, 0, slatWidth, 720);
+
+        g.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        g.fillRect(x + slatWidth, 0, 4, 720);
+      }
+
+      // Warm ambient lamp wash on right
+      const lightWash = g.createRadialGradient(980, 360, 20, 980, 360, 480);
+      lightWash.addColorStop(0, 'rgba(255, 210, 140, 0.45)');
+      lightWash.addColorStop(0.5, 'rgba(255, 190, 110, 0.18)');
+      lightWash.addColorStop(1, 'transparent');
+      g.fillStyle = lightWash;
+      g.fillRect(480, 0, 800, 720);
+
+      // Floating dark walnut shelf
+      const shelfGrad = g.createLinearGradient(540, 420, 1180, 420);
+      shelfGrad.addColorStop(0, '#38261b');
+      shelfGrad.addColorStop(1, '#21160f');
+      g.fillStyle = shelfGrad;
+      g.fillRect(540, 410, 640, 18);
+
+      const bookColors = ['#4a5568', '#b7791f', '#2b6cb0', '#742a2a', '#285e61'];
+      let bx = 570;
+      for (let b = 0; b < 9; b++) {
+        g.fillStyle = bookColors[b % bookColors.length];
+        const bh = 55 + (b % 4) * 12;
+        g.fillRect(bx, 410 - bh, 14, bh);
+        bx += 16;
+      }
+      g.fillStyle = '#e2e8f0';
+      g.beginPath();
+      g.ellipse(820, 380, 22, 30, 0, 0, Math.PI * 2);
+      g.fill();
+
+    } else if (id === 'scandi') {
+      // 4. Scandinavian Bright Studio: Diffused daylight, birch wood & indoor greenery
+      const wallGrad = g.createLinearGradient(0, 0, 1280, 720);
+      wallGrad.addColorStop(0, '#f0ede6');
+      wallGrad.addColorStop(0.5, '#e4e0d7');
+      wallGrad.addColorStop(1, '#d5cfc2');
+      g.fillStyle = wallGrad;
+      g.fillRect(0, 0, 1280, 720);
+
+      const sunGrad = g.createLinearGradient(0, 0, 600, 720);
+      sunGrad.addColorStop(0, '#ffffff');
+      sunGrad.addColorStop(0.6, 'rgba(255, 250, 240, 0.85)');
+      sunGrad.addColorStop(1, 'rgba(240, 235, 220, 0.25)');
+      g.fillStyle = sunGrad;
+      g.fillRect(60, 40, 480, 560);
+
+      g.strokeStyle = '#c4b8a5';
+      g.lineWidth = 14;
+      g.strokeRect(60, 40, 480, 560);
+      g.beginPath();
+      g.moveTo(300, 40); g.lineTo(300, 600);
+      g.moveTo(60, 320); g.lineTo(540, 320);
+      g.stroke();
+
+      const floorGrad = g.createLinearGradient(0, 560, 0, 720);
+      floorGrad.addColorStop(0, '#d2bda0');
+      floorGrad.addColorStop(1, '#b8a082');
+      g.fillStyle = floorGrad;
+      g.fillRect(0, 580, 1280, 140);
+
+      // Lush Monstera leaves
+      g.fillStyle = '#224832';
+      g.beginPath();
+      g.ellipse(1120, 540, 90, 140, Math.PI / 4, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#2d5e42';
+      g.beginPath();
+      g.ellipse(1180, 460, 80, 130, -Math.PI / 6, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#1b3b28';
+      g.beginPath();
+      g.ellipse(1050, 600, 95, 120, Math.PI / 6, 0, Math.PI * 2);
+      g.fill();
+
+    } else if (id === 'loft') {
+      // 5. Creative Industrial Loft: Exposed warm brick & vintage pendant glow
+      g.fillStyle = '#281c18';
+      g.fillRect(0, 0, 1280, 720);
+
+      const brickH = 26;
+      const brickW = 68;
+      const brickTones = ['#693024', '#7c3a2c', '#542319', '#8a4233', '#5d291e', '#4f2117'];
+      let row = 0;
+      for (let y = 0; y < 720; y += brickH + 6) {
+        const offset = (row % 2 === 0) ? 0 : -(brickW / 2);
+        for (let x = offset - 20; x < 1300; x += brickW + 8) {
+          const tone = brickTones[Math.abs(Math.floor(Math.sin(x * 3 + y * 5) * brickTones.length)) % brickTones.length];
+          g.fillStyle = tone;
+          g.fillRect(x, y, brickW, brickH);
+        }
+        row++;
+      }
+
+      // Warm pendant glow
+      const pendantGlow = g.createRadialGradient(640, 160, 10, 640, 160, 440);
+      pendantGlow.addColorStop(0, 'rgba(255, 200, 100, 0.85)');
+      pendantGlow.addColorStop(0.3, 'rgba(255, 170, 70, 0.4)');
+      pendantGlow.addColorStop(0.7, 'rgba(200, 110, 40, 0.15)');
+      pendantGlow.addColorStop(1, 'transparent');
+      g.fillStyle = pendantGlow;
+      g.fillRect(200, 0, 880, 560);
+
+      g.fillStyle = '#1a1816';
+      g.fillRect(638, 0, 4, 130);
+      g.fillStyle = '#3a342e';
+      g.fillRect(626, 130, 28, 16);
+      g.fillStyle = '#fff4cc';
+      g.shadowColor = '#ffba42';
+      g.shadowBlur = 24;
+      g.beginPath();
+      g.arc(640, 160, 16, 0, Math.PI * 2);
+      g.fill();
+      g.shadowBlur = 0;
+
+      // Industrial black steel window
+      g.fillStyle = 'rgba(12, 14, 18, 0.7)';
+      g.fillRect(40, 80, 360, 540);
+      g.strokeStyle = '#1d222a';
+      g.lineWidth = 12;
+      g.strokeRect(40, 80, 360, 540);
+      g.beginPath();
+      g.moveTo(160, 80); g.lineTo(160, 620);
+      g.moveTo(280, 80); g.lineTo(280, 620);
+      g.moveTo(40, 260); g.lineTo(400, 260);
+      g.moveTo(40, 440); g.lineTo(400, 440);
+      g.stroke();
+
+    } else if (id === 'penthouse') {
+      // 6. Luxury Penthouse Suite: Calacatta marble wall & brushed bronze inlay
+      const marbleBase = g.createLinearGradient(0, 0, 1280, 720);
+      marbleBase.addColorStop(0, '#1c1e24');
+      marbleBase.addColorStop(0.5, '#14161a');
+      marbleBase.addColorStop(1, '#0e1013');
+      g.fillStyle = marbleBase;
+      g.fillRect(0, 0, 1280, 720);
+
+      g.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      g.lineWidth = 4;
+      g.beginPath();
+      g.moveTo(100, 0); g.bezierCurveTo(240, 180, 180, 420, 320, 720);
+      g.moveTo(500, 0); g.bezierCurveTo(620, 240, 580, 480, 740, 720);
+      g.moveTo(900, 0); g.bezierCurveTo(1060, 210, 980, 500, 1140, 720);
+      g.stroke();
+
+      g.strokeStyle = 'rgba(212, 175, 55, 0.12)';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(140, 60); g.bezierCurveTo(280, 220, 210, 390, 360, 680);
+      g.moveTo(530, 40); g.bezierCurveTo(650, 270, 600, 450, 770, 700);
+      g.stroke();
+
+      const bronzeGrad = g.createLinearGradient(0, 0, 0, 720);
+      bronzeGrad.addColorStop(0, '#9e7d3b');
+      bronzeGrad.addColorStop(0.3, '#d4af37');
+      bronzeGrad.addColorStop(0.7, '#f3e5ab');
+      bronzeGrad.addColorStop(1, '#7a5e28');
+      g.fillStyle = bronzeGrad;
+      g.fillRect(380, 0, 8, 720);
+      g.fillRect(880, 0, 8, 720);
+
+      const coveGrad = g.createLinearGradient(0, 0, 0, 280);
+      coveGrad.addColorStop(0, 'rgba(255, 225, 170, 0.32)');
+      coveGrad.addColorStop(0.5, 'rgba(255, 210, 140, 0.1)');
+      coveGrad.addColorStop(1, 'transparent');
+      g.fillStyle = coveGrad;
+      g.fillRect(0, 0, 1280, 280);
+    }
+
+    const dataUrl = c.toDataURL('image/jpeg', 0.88);
+    _bgSceneCache.set(id, dataUrl);
+    return dataUrl;
   }
 
   let _assetPaths;
@@ -1421,16 +1957,29 @@
 
   function buildBgPanel() {
     $('bgEffects').innerHTML = BG_EFFECTS.map((e, i) => `<button class="bg-opt" data-i="${i}">${e.label}</button>`).join('');
-    $('bgScenes').innerHTML = BG_SCENES.map((s, i) => `<button class="bg-opt" data-scene="${i}" style="background: ${s.color}; color: #fff;">${s.label}</button>`).join('');
+    
+    // Render 6 Architectural Studio Environments with realistic thumbnails
+    $('bgScenes').className = 'bg-scenes-grid';
+    $('bgScenes').innerHTML = BG_SCENES.map((s) => {
+      const url = renderArchitecturalScene(s.id);
+      return `<div class="bg-scene-card" data-scene="${s.id}" style="background-image: url('${url}');">
+        <div class="bg-scene-overlay"></div>
+        <div class="bg-scene-info">
+          <div class="bg-scene-title">${s.label}</div>
+          <div class="bg-scene-desc">${s.desc}</div>
+        </div>
+      </div>`;
+    }).join('');
 
     $('bgEffects').querySelectorAll('.bg-opt').forEach((b) => (b.onclick = () => {
       const e = BG_EFFECTS[b.dataset.i];
       chooseBackground(e.type === 'none' ? null : { type: e.type, value: e.value });
     }));
 
-    $('bgScenes').querySelectorAll('.bg-opt').forEach((b) => (b.onclick = () => {
-      const scene = BG_SCENES[b.dataset.scene];
-      chooseBackground({ type: 'image', value: renderSceneCanvas(scene.color) });
+    $('bgScenes').querySelectorAll('.bg-scene-card').forEach((card) => (card.onclick = () => {
+      const sceneId = card.dataset.scene;
+      const url = renderArchitecturalScene(sceneId);
+      chooseBackground({ type: 'image', value: url, sceneId });
     }));
 
     $('btnUploadBg')?.addEventListener('click', () => $('bgCustomImage').click());
@@ -1439,7 +1988,7 @@
       if (file) {
         const reader = new FileReader();
         reader.onload = (ev) => {
-          chooseBackground({ type: 'image', value: ev.target.result });
+          chooseBackground({ type: 'image', value: ev.target.result, custom: true });
           toast('Custom background applied!');
         };
         reader.readAsDataURL(file);
@@ -1453,6 +2002,9 @@
     $('bgEffects').querySelectorAll('.bg-opt').forEach((b) => {
       const e = BG_EFFECTS[b.dataset.i];
       b.classList.toggle('selected', sameBg(e.type === 'none' ? null : { type: e.type, value: e.value }, bgChoice));
+    });
+    $('bgScenes').querySelectorAll('.bg-scene-card').forEach((card) => {
+      card.classList.toggle('selected', bgChoice?.type === 'image' && bgChoice?.sceneId === card.dataset.scene);
     });
     $('bgBtn').classList.toggle('active', !!bgChoice);
   }
