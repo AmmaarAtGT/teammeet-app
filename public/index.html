@@ -205,10 +205,15 @@
           </form>
         </div>
 
-        <!-- TAB: PEOPLE LIST (Search & Presence) -->
+        <!-- TAB: PEOPLE LIST (Search & Presence & Attendance Export) -->
         <div id="tab-people" class="tab-body hidden">
-          <div class="people-search-box">
-            <input id="peopleSearch" placeholder="🔍 Search participants..." />
+          <div class="people-header-actions">
+            <div class="people-search-box">
+              <input id="peopleSearch" placeholder="🔍 Search participants..." />
+            </div>
+            <button id="btnExportAttendance" type="button" class="btn-attendance-export" title="Export meeting attendance report with timestamps as CSV">
+              📥 Attendance (CSV)
+            </button>
           </div>
           <ul id="peopleList" class="people"></ul>
         </div>
@@ -436,6 +441,27 @@
         </label>
 
         <button id="btnSaveDynamicKeys" class="meet-btn-primary" style="width: 100%; margin-top: 12px;">Save & Apply Keys</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GOOGLE DRIVE SYNC MODAL -->
+  <div id="modalDrive" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>📁 Google Drive Auto-Sync</h3>
+        <button id="closeModalDrive" class="btn-icon-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="margin-bottom: 12px;">Paste your Google Drive folder link or folder ID. All meeting recordings (.mp4), AI notes (.md), attendance reports (.csv), and transcripts (.json) will automatically be saved to this folder.</p>
+        <label class="field-label">Google Drive Folder Link / ID:
+          <input id="inputDriveModal" placeholder="https://drive.google.com/drive/folders/1AbCdEfGh..." />
+        </label>
+        <div style="display: flex; gap: 8px; margin-top: 14px;">
+          <button id="btnSaveDriveModal" class="meet-btn-primary" style="flex: 1;">Save & Sync Folder</button>
+          <a id="btnOpenDriveModal" class="ghost" href="#" target="_blank" rel="noopener" style="display: none; align-items: center; text-decoration: none; padding: 0 14px;">Open ↗</a>
+        </div>
+        <p id="driveModalStatus" class="muted small" style="margin-top: 8px;"></p>
       </div>
     </div>
   </div>

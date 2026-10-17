@@ -46,6 +46,7 @@
   let wakeLock = null;
   let audioKeepAliveCtx = null;
   let isAiNotesActive = true;
+  let localIdentity = null;
 
   // ---------- Helpers ----------
   function toast(msg, ms = 2800) {
@@ -548,6 +549,7 @@
 
       // Identity nonce avoids LiveKit duplicate identity collision
       const identity = `${name.replace(/\s+/g, '_')}__${Date.now().toString(36)}`;
+      localIdentity = identity;
 
       const { token, url, room: rn } = await api('/api/token', {
         method: 'POST',
@@ -651,7 +653,25 @@
     if ($('mobileCountBadge')) $('mobileCountBadge').textContent = `${count}`;
   }
 
+  function notifyAttendanceLeave() {
+    if (!roomName || !localIdentity) return;
+    try {
+      const payload = JSON.stringify({ room: roomName, identity: localIdentity });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/attendance/leave', new Blob([payload], { type: 'application/json' }));
+      } else {
+        fetch('/api/attendance/leave', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-team-passcode': passcode },
+          body: payload,
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
   function onDisconnected() {
+    notifyAttendanceLeave();
     clearInterval(clockTimer);
     if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
     if (audioKeepAliveCtx) { audioKeepAliveCtx.close().catch(() => {}); audioKeepAliveCtx = null; }
@@ -953,7 +973,7 @@
     render();
   }
 
-  // ---------- 7. ZOOM-STYLE SEARCHABLE PEOPLE LIST ----------
+  // ---------- 7. ZOOM-STYLE SEARCHABLE PEOPLE LIST & ATTENDANCE ----------
   function renderPeople() {
     const query = ($('peopleSearch')?.value || '').toLowerCase().trim();
     const people = [room.localParticipant, ...room.remoteParticipants.values()]
@@ -964,7 +984,12 @@
         const mic = p.getTrackPublication(Track.Source.Microphone);
         const cam = p.getTrackPublication(Track.Source.Camera);
         let pAvatar = '';
-        try { pAvatar = JSON.parse(p.metadata || '{}').avatar || ''; } catch (e) {}
+        let pEmail = '';
+        try {
+          const meta = JSON.parse(p.metadata || '{}');
+          pAvatar = meta.avatar || '';
+          pEmail = meta.email || '';
+        } catch (e) {}
 
         const avatarHtml = pAvatar
           ? `<div class="people-avatar"><img src="${pAvatar}" /></div>`
@@ -974,6 +999,7 @@
           ${avatarHtml}
           <div class="people-info">
             <div class="people-name">${escapeHtml(p.name || p.identity)}${p === room.localParticipant ? ' (you)' : ''}</div>
+            ${pEmail ? `<div class="people-email">${escapeHtml(pEmail)}</div>` : ''}
             <div class="people-role">${p === room.localParticipant ? 'Host / Local' : 'Participant'}</div>
           </div>
           <div class="people-status">
@@ -986,6 +1012,17 @@
       .join('');
   }
   $('peopleSearch')?.addEventListener('input', renderPeople);
+
+  $('btnExportAttendance')?.addEventListener('click', () => {
+    if (!roomName) return;
+    const passParam = passcode ? `&p=${encodeURIComponent(passcode)}` : '';
+    const exportUrl = `/api/attendance?room=${encodeURIComponent(roomName)}&format=csv${passParam}`;
+    const a = document.createElement('a');
+    a.href = exportUrl;
+    a.download = `attendance-${roomName}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    toast('📥 Attendance report downloaded (CSV)');
+  });
 
   // ---------- 8. REAL-TIME COLLABORATIVE WHITEBOARD ----------
   function initWhiteboard() {
@@ -1180,15 +1217,46 @@
       toast(isAiNotesActive ? '📝 AI Notes capturing resumed' : '⏸️ AI Notes paused for confidential discussion');
     };
 
-    $('btnDriveFolder').onclick = () => {
-      const url = prompt('Google Drive Folder Link for meeting recordings & notes:', store.get('tm_drive_folder') || '');
-      if (url) {
-        store.set('tm_drive_folder', url);
-        api('/api/drive/sync', { method: 'POST', body: { sessionId: recSessionId || 'general', driveFolderUrl: url } })
-          .then(() => toast('Google Drive folder linked!'))
-          .catch(() => toast('Google Drive folder saved locally'));
+    function openDriveModal() {
+      const saved = store.get('tm_drive_folder') || '';
+      if ($('inputDriveModal')) $('inputDriveModal').value = saved;
+      if (saved) {
+        if ($('btnOpenDriveModal')) {
+          $('btnOpenDriveModal').style.display = 'inline-flex';
+          $('btnOpenDriveModal').href = saved.startsWith('http') ? saved : `https://drive.google.com/drive/folders/${saved}`;
+        }
+        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Currently synced to folder';
+      } else {
+        if ($('btnOpenDriveModal')) $('btnOpenDriveModal').style.display = 'none';
+        if ($('driveModalStatus')) $('driveModalStatus').textContent = '';
       }
-    };
+      $('modalDrive')?.classList.remove('hidden');
+    }
+
+    $('btnDriveFolder').onclick = openDriveModal;
+    $('closeModalDrive')?.addEventListener('click', () => $('modalDrive')?.classList.add('hidden'));
+
+    $('btnSaveDriveModal')?.addEventListener('click', async () => {
+      const url = ($('inputDriveModal')?.value || '').trim();
+      if (!url) {
+        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Please enter a Google Drive folder link or ID';
+        return;
+      }
+      store.set('tm_drive_folder', url);
+      if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Syncing folder...';
+      try {
+        await api('/api/drive/sync', { method: 'POST', body: { sessionId: recSessionId || 'general', driveFolderUrl: url } });
+        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Google Drive folder linked! Meeting recordings, notes & attendance will sync here ✓';
+        toast('📁 Google Drive folder linked and verified');
+        if ($('btnOpenDriveModal')) {
+          $('btnOpenDriveModal').style.display = 'inline-flex';
+          $('btnOpenDriveModal').href = url.startsWith('http') ? url : `https://drive.google.com/drive/folders/${url}`;
+        }
+        setTimeout(() => $('modalDrive')?.classList.add('hidden'), 1500);
+      } catch (e) {
+        if ($('driveModalStatus')) $('driveModalStatus').textContent = 'Saved locally: ' + e.message;
+      }
+    });
   }
 
   // ---------- 11. FLOATING BOT & DYNAMIC KEY ROTATION ----------
@@ -1485,8 +1553,9 @@
         toast('Recording stopped — files & AI notes will sync to Drive', 5000);
         await send({ type: 'rec', on: false });
       } else {
-        await api('/api/recording/start', { method: 'POST', body: { room: roomName, name: room.localParticipant.name } });
-        toast('Server recording started — red REC active for all');
+        const driveFolder = store.get('tm_drive_folder') || '';
+        await api('/api/recording/start', { method: 'POST', body: { room: roomName, name: room.localParticipant.name, driveFolder } });
+        toast('Server recording started — red REC active for all' + (driveFolder ? ' (Syncing to Drive 📁)' : ''));
         await send({ type: 'rec', on: true });
       }
     } catch (e) { toast(e.message, 6000); }
@@ -2015,6 +2084,7 @@
   $('bgClose').onclick = () => $('bgPanel').classList.add('hidden');
 
   window.addEventListener('beforeunload', (e) => {
+    notifyAttendanceLeave();
     if (localRecorder || audioRecorder) { e.preventDefault(); e.returnValue = ''; }
   });
 

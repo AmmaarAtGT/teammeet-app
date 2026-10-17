@@ -22,6 +22,8 @@ const {
   EgressStatus,
 } = require('livekit-server-sdk');
 const { summarize } = require('./summarize');
+const attendance = require('./attendance');
+const driveSync = require('./driveSync');
 
 let PORT = process.env.PORT || 3000;
 let LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'devkey';
@@ -136,7 +138,7 @@ async function captureNewSpeakers(s) {
   }
 }
 
-async function startSession(room, startedBy) {
+async function startSession(room, startedBy, driveFolder) {
   if (active.has(room)) return active.get(room);
   const id = `${room}_${new Date().toISOString().replace(/[:.]/g, '-')}`;
   fs.mkdirSync(path.join(sessionDir(id), 'audio'), { recursive: true });
@@ -152,6 +154,7 @@ async function startSession(room, startedBy) {
     id, room, startedBy, status: 'recording',
     createdAt: new Date().toISOString(),
     compositeEgressId: info.egressId,
+    driveFolder: driveFolder || GOOGLE_DRIVE_FOLDER_ID || '',
     tracks: [],
   };
   active.set(room, s);
@@ -180,7 +183,7 @@ async function stopSession(room) {
   return s;
 }
 
-// Wait for egress to finish writing, then transcribe + summarize.
+// Wait for egress to finish writing, then transcribe, summarize, record attendance and sync to Google Drive.
 async function processSession(id) {
   const s = loadSession(id);
   if (!s) return;
@@ -204,9 +207,37 @@ async function processSession(id) {
       t.offsetSec = Math.max(0, (t.startedAtMs - meetingStart) / 1000);
     });
     s.hasVideo = fs.existsSync(path.join(sessionDir(id), 'meeting.mp4'));
-    s.participants = [...new Set(s.tracks.map((t) => t.name))];
 
-    if (AI_NOTES === 'off' || !s.tracks.length) return set({ status: 'ready' });
+    // Attendance export for session
+    const att = attendance.exportAttendanceForSession(s.room, sessionDir(id));
+    s.attendance = att.records;
+    s.participants = [...new Set([...s.tracks.map((t) => t.name), ...(att.records || []).map((r) => r.name)])];
+
+    const targetDrive = s.driveFolder || GOOGLE_DRIVE_FOLDER_ID;
+
+    if (AI_NOTES === 'off' || !s.tracks.length) {
+      const fallbackNotes = {
+        summary: `Meeting conducted in room "${s.room}" on ${new Date(s.createdAt).toLocaleDateString()} with ${s.participants.join(', ') || 'team members'}.`,
+        decisions: [],
+        action_items: [],
+        topics: [],
+        open_questions: [],
+        model: 'built-in',
+        generatedAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(path.join(sessionDir(id), 'notes.json'), JSON.stringify(fallbackNotes, null, 2));
+      fs.writeFileSync(path.join(sessionDir(id), 'notes.md'), notesToMarkdown(s, fallbackNotes, att.records));
+
+      if (targetDrive) {
+        try {
+          const driveResult = await driveSync.syncSessionToDrive(s, sessionDir(id), targetDrive);
+          s.driveSync = driveResult;
+        } catch (e) {
+          console.warn('[Google Drive Sync Warning]', e.message);
+        }
+      }
+      return set({ status: 'ready' });
+    }
 
     // 2) transcribe each speaker's audio separately → speaker labels are exact
     set({ status: 'transcribing' });
@@ -233,7 +264,19 @@ async function processSession(id) {
     set({ status: 'summarizing' });
     const notes = await summarize(lines, { room: s.room, date: s.createdAt, participants: s.participants });
     fs.writeFileSync(path.join(sessionDir(id), 'notes.json'), JSON.stringify(notes, null, 2));
-    fs.writeFileSync(path.join(sessionDir(id), 'notes.md'), notesToMarkdown(s, notes));
+    fs.writeFileSync(path.join(sessionDir(id), 'notes.md'), notesToMarkdown(s, notes, att.records));
+
+    // 4) Google Drive synchronization if folder link is supplied
+    if (targetDrive) {
+      try {
+        set({ status: 'syncing_drive' });
+        const driveResult = await driveSync.syncSessionToDrive(s, sessionDir(id), targetDrive);
+        s.driveSync = driveResult;
+      } catch (err) {
+        console.warn(`[Google Drive Sync Error] ${err.message}`);
+      }
+    }
+
     set({ status: 'ready' });
   } catch (e) {
     console.error(`[notes] ${id}:`, e);
@@ -241,7 +284,7 @@ async function processSession(id) {
   }
 }
 
-function notesToMarkdown(s, n) {
+function notesToMarkdown(s, n, attRecords = []) {
   const out = [`# Meeting notes — ${s.room}`, `${new Date(s.createdAt).toLocaleString()} · ${s.participants.join(', ')}`, '', '## Summary', n.summary || '', ''];
   if (n.decisions?.length) out.push('## Decisions', ...n.decisions.map((d) => `- ${d}`), '');
   if (n.action_items?.length) {
@@ -255,6 +298,9 @@ function notesToMarkdown(s, n) {
     for (const t of n.topics) out.push(`### ${t.title}`, t.notes || '', '');
   }
   if (n.open_questions?.length) out.push('## Open questions', ...n.open_questions.map((q) => `- ${q}`), '');
+  if (attRecords && attRecords.length) {
+    out.push('## Attendance Record', attendance.generateAttendanceMarkdown(attRecords), '');
+  }
   return out.join('\n');
 }
 
@@ -271,14 +317,43 @@ app.post('/api/token', async (req, res) => {
   const name = cleanName(req.body.name);
   if (!room || !name) return res.status(400).json({ error: 'room and name are required' });
   const identity = req.body.identity || `${name.replace(/\s+/g, '_')}-${crypto.randomBytes(3).toString('hex')}`;
+  const email = req.body.email || '';
+  const avatar = req.body.avatar || '';
+
+  // Real-time Attendance tracking on join with exact timestamp
+  attendance.recordJoin(room, { name, email, identity, avatar });
+
   const metadata = JSON.stringify({
-    avatar: req.body.avatar || '',
-    email: req.body.email || '',
+    avatar,
+    email,
     joinedAt: Date.now()
   });
   const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name, ttl: TOKEN_TTL, metadata });
   at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
   res.json({ token: await at.toJwt(), url: LIVEKIT_URL, room, identity });
+});
+
+// Leave attendance endpoint
+app.post('/api/attendance/leave', (req, res) => {
+  const room = cleanRoom(req.body.room);
+  const identity = req.body.identity;
+  if (!room || !identity) return res.status(400).json({ error: 'room and identity required' });
+  const record = attendance.recordLeave(room, identity);
+  res.json({ ok: true, record });
+});
+
+// Attendance export & query endpoint (JSON or downloadable CSV)
+app.get('/api/attendance', (req, res) => {
+  const room = cleanRoom(req.query.room);
+  if (!room) return res.status(400).json({ error: 'room query param required' });
+  const records = attendance.getRoomAttendance(room);
+  if (req.query.format === 'csv') {
+    const csv = attendance.generateAttendanceCsv(records);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="attendance-${room}.csv"`);
+    return res.send(csv);
+  }
+  res.json({ room, records });
 });
 
 // Active rooms query for multi-room 50-100 user deployments
@@ -320,21 +395,24 @@ app.post('/api/admin/keys', (req, res) => {
 });
 
 // Google Drive Sync Endpoint
-app.post('/api/drive/sync', (req, res) => {
+app.post('/api/drive/sync', async (req, res) => {
   if (!checkPasscode(req, res)) return;
   const { sessionId, driveFolderUrl } = req.body || {};
   if (driveFolderUrl) GOOGLE_DRIVE_FOLDER_ID = String(driveFolderUrl).trim();
+  let syncResult = null;
   if (sessionId && sessionId !== 'general') {
     const s = loadSession(sessionId);
     if (s) {
       s.driveFolder = GOOGLE_DRIVE_FOLDER_ID;
       s.driveSyncedAt = new Date().toISOString();
       saveSession(s);
+      syncResult = await driveSync.syncSessionToDrive(s, sessionDir(s.id), GOOGLE_DRIVE_FOLDER_ID);
+      s.driveSync = syncResult;
+      saveSession(s);
     }
   }
-  res.json({ ok: true, synced: true, driveFolder: GOOGLE_DRIVE_FOLDER_ID });
+  res.json({ ok: true, synced: true, driveFolder: GOOGLE_DRIVE_FOLDER_ID, result: syncResult });
 });
-
 
 app.get('/api/recording/status', (req, res) => {
   const s = active.get(cleanRoom(req.query.room));
@@ -344,7 +422,7 @@ app.get('/api/recording/status', (req, res) => {
 app.post('/api/recording/start', async (req, res) => {
   if (!checkPasscode(req, res)) return;
   try {
-    const s = await startSession(cleanRoom(req.body.room), cleanName(req.body.name));
+    const s = await startSession(cleanRoom(req.body.room), cleanName(req.body.name), req.body.driveFolder);
     res.json({ sessionId: s.id });
   } catch (e) {
     res.status(500).json({ error: `Could not start recording: ${e.message}. Is the egress service running?` });
@@ -374,7 +452,13 @@ app.get('/api/sessions/:id', (req, res) => {
   const s = loadSession(req.params.id);
   if (!s) return res.status(404).json({ error: 'Not found' });
   const read = (f) => { try { return JSON.parse(fs.readFileSync(path.join(sessionDir(s.id), f), 'utf8')); } catch { return null; } };
-  res.json({ session: s, transcript: read('transcript.json'), notes: read('notes.json') });
+  res.json({
+    session: s,
+    transcript: read('transcript.json'),
+    notes: read('notes.json'),
+    attendance: read('attendance.json') || s.attendance || null,
+    driveSync: read('drive_sync.json') || s.driveSync || null,
+  });
 });
 
 // Re-run transcription/summary (e.g. after switching to a better LLM)
@@ -388,10 +472,10 @@ app.post('/api/sessions/:id/reprocess', (req, res) => {
   res.json({ ok: true });
 });
 
-// Download/stream recording files: /files/<sessionId>/meeting.mp4, notes.md, transcript.json …
+// Download/stream recording files: /files/<sessionId>/meeting.mp4, notes.md, transcript.json, attendance.csv …
 app.get('/files/:id/:file', (req, res) => {
   if (!checkPasscode(req, res)) return;
-  const allowed = ['meeting.mp4', 'notes.md', 'notes.json', 'transcript.json'];
+  const allowed = ['meeting.mp4', 'notes.md', 'notes.json', 'transcript.json', 'attendance.csv', 'attendance.json', 'drive_sync.json'];
   if (!allowed.includes(req.params.file)) return res.status(404).end();
   const f = path.join(sessionDir(req.params.id), req.params.file);
   if (!fs.existsSync(f)) return res.status(404).end();

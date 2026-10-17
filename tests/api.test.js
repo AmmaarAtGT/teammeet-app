@@ -151,3 +151,69 @@ test('token: carries avatar and email in LiveKit metadata', async () => {
   assert.ok(meta.avatar.startsWith('data:image/png'));
 });
 
+test('attendance: automatically records join timestamp and serves JSON and CSV reports', async () => {
+  // 1. Join room
+  const tokenRes = await post('/api/token', {
+    room: 'att-room',
+    name: 'Rahul Sharma',
+    email: 'rahul@enterprise.com',
+  });
+  assert.equal(tokenRes.status, 200);
+  const { identity } = await tokenRes.json();
+
+  // 2. Query attendance in JSON format
+  const attRes = await fetch(`${BASE}/api/attendance?room=att-room`);
+  assert.equal(attRes.status, 200);
+  const data = await attRes.json();
+  assert.equal(data.room, 'att-room');
+  assert.ok(Array.isArray(data.records));
+  const rahul = data.records.find((r) => r.identity === identity);
+  assert.ok(rahul, 'Participant should be in attendance');
+  assert.equal(rahul.name, 'Rahul Sharma');
+  assert.equal(rahul.email, 'rahul@enterprise.com');
+  assert.ok(rahul.joinedAt);
+
+  // 3. Query attendance in downloadable CSV format
+  const csvRes = await fetch(`${BASE}/api/attendance?room=att-room&format=csv`);
+  assert.equal(csvRes.status, 200);
+  assert.ok(csvRes.headers.get('content-type').includes('csv'));
+  const csvText = await csvRes.text();
+  assert.ok(csvText.includes('Participant Name'));
+  assert.ok(csvText.includes('Rahul Sharma'));
+  assert.ok(csvText.includes('rahul@enterprise.com'));
+
+  // 4. Record participant leaving
+  const leaveRes = await post('/api/attendance/leave', {
+    room: 'att-room',
+    identity,
+  });
+  assert.equal(leaveRes.status, 200);
+  const leaveData = await leaveRes.json();
+  assert.equal(leaveData.ok, true);
+  assert.equal(leaveData.record.status, 'Left');
+  assert.ok(leaveData.record.leftAt);
+});
+
+test('drive sync: session detail includes attendance and drive sync records', async () => {
+  const id = 'att-session-123';
+  const sessDir = path.join(REC, id);
+  fs.mkdirSync(sessDir, { recursive: true });
+  fs.writeFileSync(path.join(sessDir, 'session.json'), JSON.stringify({
+    id, room: 'board-room', status: 'ready', createdAt: new Date().toISOString(), tracks: []
+  }));
+  fs.writeFileSync(path.join(sessDir, 'attendance.csv'), 'Participant,Email\nRahul,rahul@corp.com');
+  fs.writeFileSync(path.join(sessDir, 'attendance.json'), JSON.stringify([{ name: 'Rahul', status: 'Attended' }]));
+  fs.writeFileSync(path.join(sessDir, 'drive_sync.json'), JSON.stringify({ synced: true, folderId: 'folder-abc-123' }));
+
+  const detailRes = await (await fetch(`${BASE}/api/sessions/${id}`, { headers: { 'x-team-passcode': 'letmein' } })).json();
+  assert.ok(detailRes.attendance);
+  assert.equal(detailRes.attendance[0].name, 'Rahul');
+  assert.ok(detailRes.driveSync);
+  assert.equal(detailRes.driveSync.folderId, 'folder-abc-123');
+
+  // Verify attendance.csv is downloadable
+  const csvFile = await fetch(`${BASE}/files/${id}/attendance.csv?p=letmein`);
+  assert.equal(csvFile.status, 200);
+  assert.ok((await csvFile.text()).includes('rahul@corp.com'));
+});
+

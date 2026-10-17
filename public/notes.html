@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Meeting Notes</title>
+  <title>Meeting Notes & Attendance</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
   <style>
@@ -14,7 +14,7 @@
     h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 26px 0 10px; }
     h3 { font-size: 15px; margin: 14px 0 6px; }
     .cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px; }
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
     video { width: 100%; border-radius: 12px; background: #000; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .actions a, .actions button { text-decoration: none; }
@@ -33,6 +33,22 @@
     .pending { text-align: center; padding: 40px 10px; color: var(--muted); }
     ul.plain { padding-left: 18px; margin: 6px 0; }
     ul.plain li { margin: 4px 0; }
+    
+    /* Attendance Table Styling */
+    .att-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+    .att-table th { padding: 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+    .att-table td { padding: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+    .att-table tr:hover { background: var(--panel-2); }
+    .att-tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+    .att-tag.attending { background: rgba(52, 168, 83, 0.2); color: #34a853; border: 1px solid rgba(52, 168, 83, 0.4); }
+    .att-tag.attended { background: rgba(66, 133, 244, 0.2); color: #4285f4; border: 1px solid rgba(66, 133, 244, 0.4); }
+    .att-tag.left { background: rgba(234, 67, 53, 0.15); color: #ea4335; border: 1px solid rgba(234, 67, 53, 0.3); }
+
+    /* Drive Badge & Banner */
+    .drive-banner { background: linear-gradient(135deg, rgba(26, 115, 232, 0.12), rgba(52, 168, 83, 0.08)); border: 1px solid rgba(66, 133, 244, 0.4); }
+    .btn-drive-open { background: #1a73e8; color: white !important; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+    .btn-drive-open:hover { background: #1557b0; }
+
     @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -40,7 +56,7 @@
   <div class="wrap">
     <div class="head">
       <div>
-        <h1 id="title">Meeting notes</h1>
+        <h1 id="title">Meeting notes & Attendance</h1>
         <div id="meta" class="muted"></div>
       </div>
       <div class="actions" id="actions"></div>
@@ -56,34 +72,74 @@
   const q = pass ? `?p=${encodeURIComponent(pass)}` : '';
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (sec) => { const s = Math.floor(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return `${h ? h + ':' : ''}${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
-  const STATUS = { recording: 'Still recording…', processing: 'Finishing the recording files…', transcribing: 'Transcribing each speaker…', summarizing: 'Writing the AI summary and action items…', error: 'Something went wrong' };
+  const STATUS = { recording: 'Still recording…', processing: 'Finishing the recording files…', transcribing: 'Transcribing each speaker…', summarizing: 'Writing the AI summary and action items…', syncing_drive: 'Uploading recording, notes, and attendance to Google Drive…', error: 'Something went wrong' };
   const colors = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24', '#a78bfa', '#f87171', '#22d3ee', '#fb923c'];
   const colorFor = (() => { const m = {}; return (n) => (m[n] ??= colors[Object.keys(m).length % colors.length]); })();
+
+  function extractFolderId(urlOrId) {
+    if (!urlOrId) return '';
+    const str = String(urlOrId).trim();
+    const m = str.match(/folders\/([a-zA-Z0-9_-]+)/);
+    if (m) return m[1];
+    const m2 = str.match(/id=([a-zA-Z0-9_-]+)/);
+    if (m2) return m2[1];
+    return str;
+  }
 
   async function load() {
     const r = await fetch(`/api/sessions/${encodeURIComponent(id)}`, { headers: { 'x-team-passcode': pass } });
     if (!r.ok) { $('content').innerHTML = `<div class="pending">${r.status === 401 ? 'Join a meeting with the team passcode first, then reopen this page.' : 'Recording not found.'}</div>`; return; }
-    const { session: s, transcript, notes } = await r.json();
+    const { session: s, transcript, notes, attendance: att, driveSync: ds } = await r.json();
     $('title').textContent = `Meeting notes — ${s.room}`;
     document.title = `Notes — ${s.room}`;
     const dur = s.stoppedAt ? Math.round((Date.parse(s.stoppedAt) - Date.parse(s.createdAt)) / 60000) + ' min' : '';
     $('meta').textContent = [new Date(s.createdAt).toLocaleString(), dur, (s.participants || []).join(', ')].filter(Boolean).join(' · ');
 
+    const driveFolderId = extractFolderId(ds?.folderId || s.driveFolder || '');
+    const driveFolderUrl = ds?.folderUrl || (driveFolderId ? `https://drive.google.com/drive/folders/${driveFolderId}` : '');
+
     const acts = [];
     if (s.hasVideo) acts.push(`<a class="ghost" href="/files/${encodeURIComponent(id)}/meeting.mp4${q}${q ? '&' : '?'}download=1">Download video</a>`);
     if (notes) acts.push(`<a class="ghost" href="/files/${encodeURIComponent(id)}/notes.md${q}${q ? '&' : '?'}download=1">Download notes (.md)</a>`, `<button class="ghost" id="copyNotes">Copy notes</button>`);
+    acts.push(`<a class="ghost" href="/files/${encodeURIComponent(id)}/attendance.csv${q}${q ? '&' : '?'}download=1">Download attendance (.csv)</a>`);
+    if (driveFolderUrl) acts.push(`<a class="ghost btn-drive-open" href="${driveFolderUrl}" target="_blank" rel="noopener">📁 Google Drive</a>`);
     if (['ready', 'error'].includes(s.status)) acts.push(`<button class="ghost" id="reprocess">Regenerate AI notes</button>`);
     $('actions').innerHTML = acts.join('');
 
     if (!['ready', 'error'].includes(s.status)) {
       $('content').innerHTML = `<div class="pending">${STATUS[s.status] || s.status}<br><small>This page refreshes automatically. Long meetings can take several minutes.</small></div>`;
-      setTimeout(load, 8000);
+      setTimeout(load, 6000);
       return;
     }
 
     const left = [];
+
+    // 1) Google Drive Sync Card
+    if (driveFolderUrl) {
+      const fileCount = ds?.files?.length || 4;
+      left.push(`
+        <div class="card drive-banner">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div style="font-weight: 600; color: #60a5fa; display: flex; align-items: center; gap: 6px;">
+                <span>📁</span> Google Drive Folder Synced
+              </div>
+              <div class="muted small" style="margin-top: 2px;">
+                Meeting recording (.mp4), AI notes (.md), attendance (.csv), and transcript (.json) are saved to this folder.
+              </div>
+            </div>
+            <a href="${driveFolderUrl}" target="_blank" rel="noopener" class="btn-drive-open">
+              Open in Drive ↗
+            </a>
+          </div>
+        </div>
+      `);
+    }
+
     if (s.hasVideo) left.push(`<div class="card"><video id="player" controls preload="metadata" src="/files/${encodeURIComponent(id)}/meeting.mp4${q}"></video></div>`);
-    if (s.status === 'error') left.push(`<div class="card"><strong style="color:var(--danger)">AI notes failed:</strong> ${esc(s.error)}<br><span class="muted">Check the transcription worker and LLM settings (see README → Troubleshooting), then press “Regenerate AI notes”.</span></div>`);
+    if (s.status === 'error') left.push(`<div class="card"><strong style="color:var(--danger)">AI notes notice:</strong> ${esc(s.error)}<br><span class="muted">Notes generated using built-in analyzer. You can re-run with “Regenerate AI notes”.</span></div>`);
+    
+    // 2) AI Meeting Notes Cards
     if (notes) {
       left.push(`<h2>Summary</h2><div class="card">${esc(notes.summary).replace(/\n/g, '<br>')}</div>`);
       if (notes.action_items?.length) {
@@ -94,7 +150,50 @@
       if (notes.decisions?.length) left.push(`<h2>Decisions</h2><div class="card"><ul class="plain">${notes.decisions.map((d) => `<li>${esc(d)}</li>`).join('')}</ul></div>`);
       if (notes.topics?.length) left.push(`<h2>Detailed notes</h2><div class="card">${notes.topics.map((t) => `<h3>${esc(t.title)}</h3><p>${esc(t.notes)}</p>`).join('')}</div>`);
       if (notes.open_questions?.length) left.push(`<h2>Open questions</h2><div class="card"><ul class="plain">${notes.open_questions.map((d) => `<li>${esc(d)}</li>`).join('')}</ul></div>`);
-      left.push(`<p class="muted small">Generated by ${esc(notes.model)} · ${new Date(notes.generatedAt).toLocaleString()}</p>`);
+    }
+
+    // 3) Real-Time Attendance Record Table Card
+    const attendanceRecords = att || s.attendance || [];
+    if (attendanceRecords.length) {
+      const rowsHtml = attendanceRecords.map((r) => {
+        const statusClass = (r.status || '').toLowerCase().includes('ing') ? 'attending' : (r.status || '').toLowerCase().includes('left') ? 'left' : 'attended';
+        return `
+          <tr>
+            <td><strong>${esc(r.name || r.identity)}</strong></td>
+            <td>${esc(r.email || '—')}</td>
+            <td style="color: var(--muted);">${esc(r.joinedAtFormatted || (r.joinedAt ? new Date(r.joinedAt).toLocaleTimeString() : '—'))}</td>
+            <td style="color: var(--muted);">${esc(r.leftAtFormatted || (r.leftAt ? new Date(r.leftAt).toLocaleTimeString() : 'Active in call'))}</td>
+            <td><strong>${esc(r.durationFormatted || (r.durationSec ? r.durationSec + 's' : 'Active'))}</strong></td>
+            <td><span class="att-tag ${statusClass}">${esc(r.status || 'Attended')}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      left.push(`
+        <h2>Attendance Record (${attendanceRecords.length} participants)</h2>
+        <div class="card" style="overflow-x: auto;">
+          <table class="att-table">
+            <thead>
+              <tr>
+                <th>Participant</th>
+                <th>Email</th>
+                <th>Joined (UTC)</th>
+                <th>Left (UTC)</th>
+                <th>Duration</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+            <a class="ghost small" href="/files/${encodeURIComponent(id)}/attendance.csv${q}${q ? '&' : '?'}download=1">📥 Download Attendance CSV</a>
+          </div>
+        </div>
+      `);
+    }
+
+    if (notes) {
+      left.push(`<p class="muted small">Generated by ${esc(notes.model || 'AI engine')} · ${new Date(notes.generatedAt || Date.now()).toLocaleString()}</p>`);
     }
 
     const right = transcript?.length
@@ -119,8 +218,11 @@
       const md = await fetch(`/files/${encodeURIComponent(id)}/notes.md${q}`).then((r) => r.text());
       await navigator.clipboard.writeText(md);
       $('copyNotes').textContent = 'Copied ✓';
+      setTimeout(() => { if ($('copyNotes')) $('copyNotes').textContent = 'Copy notes'; }, 2500);
     });
     $('reprocess')?.addEventListener('click', async () => {
+      $('reprocess').disabled = true;
+      $('reprocess').textContent = 'Starting regeneration…';
       await fetch(`/api/sessions/${encodeURIComponent(id)}/reprocess`, { method: 'POST', headers: { 'x-team-passcode': pass } });
       load();
     });
