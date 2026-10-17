@@ -1697,7 +1697,11 @@
   });
   $('sheetDriveBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnDriveFolder')?.click(); });
   $('sheetAttendanceBtn')?.addEventListener('click', () => { closeMobileSheet(); syncAttendanceToDrive(); });
-
+// Close the floating Live AI Meeting Notes panel
+$('btnAiPopClose')?.addEventListener('click', () => {
+  $('aiNotesLivePop')?.classList.add('hidden');
+  $('btnLiveNotesChip')?.classList.remove('active');
+});
   $('mobileTopPeopleBtn')?.addEventListener('click', () => $('peopleBtn')?.click());
   $('mobileTopChatBtn')?.addEventListener('click', () => $('chatBtn')?.click());
 
