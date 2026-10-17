@@ -181,8 +181,20 @@ test('attendance: automatically records join timestamp and serves JSON and CSV r
   assert.ok(csvText.includes('Participant Name'));
   assert.ok(csvText.includes('Rahul Sharma'));
   assert.ok(csvText.includes('rahul@enterprise.com'));
+  assert.ok(csvText.includes('Camera State'));
 
-  // 4. Record participant leaving
+  // 4. Record camera toggle (turning camera ON)
+  const camRes = await post('/api/attendance/camera', {
+    room: 'att-room',
+    identity,
+    cameraOn: true,
+  });
+  assert.equal(camRes.status, 200);
+  const camData = await camRes.json();
+  assert.equal(camData.ok, true);
+  assert.equal(camData.record.cameraState, 'ON');
+
+  // 5. Record participant leaving
   const leaveRes = await post('/api/attendance/leave', {
     room: 'att-room',
     identity,
@@ -192,6 +204,21 @@ test('attendance: automatically records join timestamp and serves JSON and CSV r
   assert.equal(leaveData.ok, true);
   assert.equal(leaveData.record.status, 'Left');
   assert.ok(leaveData.record.leftAt);
+});
+
+test('snapshots: attendee snapshot endpoint saves snapshot images safely', async () => {
+  const sessId = 'snap-test-session';
+  const snapRes = await post(`/api/sessions/${sessId}/snapshot`, {
+    speaker: 'Rahul Sharma',
+    imageBase64: 'data:image/jpeg;base64,aGVsbG93b3JsZA=='
+  });
+  assert.equal(snapRes.status, 200);
+  const snapData = await snapRes.json();
+  assert.equal(snapData.ok, true);
+  assert.ok(snapData.file.startsWith('snap_'));
+
+  const snapDir = path.join(REC, sessId, 'snapshots');
+  assert.ok(fs.existsSync(path.join(snapDir, snapData.file)));
 });
 
 test('drive sync: session detail includes attendance and drive sync records', async () => {

@@ -1,5 +1,5 @@
-// Real-Time Attendance & Timestamp Tracking Engine for TeamMeet
-// Tracks join time, leave time, duration, email, and attendance status for all participants.
+// Real-Time Attendance & Camera State Tracking Engine for TeamMeet
+// Tracks join time, leave time, duration, email, camera ON/OFF timestamps, and attendance status.
 // Exports formatted CSV, JSON, and Markdown tables for meeting archives.
 
 const fs = require('fs');
@@ -24,7 +24,7 @@ function formatTimestamp(isoStr) {
   return d.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
 }
 
-function recordJoin(room, { name, email, identity, avatar }) {
+function recordJoin(room, { name, email, identity, avatar, cameraOn = false }) {
   if (!room || !identity) return null;
   const cleanRoom = String(room).trim().toLowerCase();
   if (!roomAttendance.has(cleanRoom)) {
@@ -54,10 +54,44 @@ function recordJoin(room, { name, email, identity, avatar }) {
     leftAt: null,
     durationSec: 0,
     status: 'Attended',
+    cameraState: cameraOn ? 'ON' : 'OFF',
+    cameraLastToggled: nowIso,
+    cameraOnSec: 0,
+    cameraOffSec: 0,
+    cameraChanges: [
+      { state: cameraOn ? 'ON' : 'OFF', timestamp: nowIso }
+    ]
   };
 
   map.set(identity, record);
   return record;
+}
+
+function recordCameraChange(room, identity, isCameraOn) {
+  if (!room || !identity) return null;
+  const cleanRoom = String(room).trim().toLowerCase();
+  const map = roomAttendance.get(cleanRoom);
+  if (!map || !map.has(identity)) return null;
+
+  const rec = map.get(identity);
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  const lastMs = rec.cameraLastToggled ? Date.parse(rec.cameraLastToggled) : now;
+  const elapsed = Math.max(0, Math.round((now - lastMs) / 1000));
+
+  if (rec.cameraState === 'ON') {
+    rec.cameraOnSec = (rec.cameraOnSec || 0) + elapsed;
+  } else {
+    rec.cameraOffSec = (rec.cameraOffSec || 0) + elapsed;
+  }
+
+  const newState = isCameraOn ? 'ON' : 'OFF';
+  rec.cameraState = newState;
+  rec.cameraLastToggled = nowIso;
+  if (!rec.cameraChanges) rec.cameraChanges = [];
+  rec.cameraChanges.push({ state: newState, timestamp: nowIso });
+
+  return rec;
 }
 
 function recordLeave(room, identity) {
@@ -67,13 +101,24 @@ function recordLeave(room, identity) {
   if (!map || !map.has(identity)) return null;
 
   const record = map.get(identity);
-  record.leftAt = new Date().toISOString();
+  const nowIso = new Date().toISOString();
+  record.leftAt = nowIso;
   record.status = 'Left';
 
   const startMs = Date.parse(record.joinedAt);
   const endMs = Date.parse(record.leftAt);
   if (startMs && endMs && endMs >= startMs) {
     record.durationSec = Math.round((endMs - startMs) / 1000);
+  }
+
+  // Finalize camera duration
+  if (record.cameraLastToggled) {
+    const elapsed = Math.max(0, Math.round((endMs - Date.parse(record.cameraLastToggled)) / 1000));
+    if (record.cameraState === 'ON') {
+      record.cameraOnSec = (record.cameraOnSec || 0) + elapsed;
+    } else {
+      record.cameraOffSec = (record.cameraOffSec || 0) + elapsed;
+    }
   }
 
   return record;
@@ -90,24 +135,56 @@ function getRoomAttendance(room) {
     if (!rec.leftAt && rec.joinedAt) {
       dur = Math.max(1, Math.round((nowMs - Date.parse(rec.joinedAt)) / 1000));
     }
+
+    // Dynamic camera duration calculation
+    let onSec = rec.cameraOnSec || 0;
+    let offSec = rec.cameraOffSec || 0;
+    if (!rec.leftAt && rec.cameraLastToggled) {
+      const activeElapsed = Math.max(0, Math.round((nowMs - Date.parse(rec.cameraLastToggled)) / 1000));
+      if (rec.cameraState === 'ON') {
+        onSec += activeElapsed;
+      } else {
+        offSec += activeElapsed;
+      }
+    }
+
     return {
       ...rec,
       durationSec: dur,
       durationFormatted: formatDuration(dur),
       joinedAtFormatted: formatTimestamp(rec.joinedAt),
       leftAtFormatted: formatTimestamp(rec.leftAt),
+      cameraState: rec.cameraState || 'OFF',
+      cameraOnSec: onSec,
+      cameraOffSec: offSec,
+      cameraOnFormatted: formatDuration(onSec),
+      cameraOffFormatted: formatDuration(offSec),
     };
   });
 }
 
 function generateAttendanceCsv(records) {
-  const headers = ['Participant Name', 'Email Address', 'Joined At (UTC)', 'Left At (UTC)', 'Total Duration', 'Status'];
+  const headers = [
+    'Participant Name',
+    'Email Address',
+    'Joined At (UTC)',
+    'Left At (UTC)',
+    'Total Duration',
+    'Camera State',
+    'Camera ON Duration',
+    'Camera OFF Duration',
+    'Status'
+  ];
+
   const rows = records.map((r) => [
     `"${String(r.name).replace(/"/g, '""')}"`,
     `"${String(r.email || 'N/A').replace(/"/g, '""')}"`,
     `"${r.joinedAtFormatted || formatTimestamp(r.joinedAt)}"`,
     `"${r.leftAtFormatted || formatTimestamp(r.leftAt)}"`,
     `"${r.durationFormatted || formatDuration(r.durationSec)}"`,
+    `"${r.cameraState || 'OFF'}"`,
+    `"${r.cameraOnFormatted || formatDuration(r.cameraOnSec)}"`,
+    `"${r.cameraOffFormatted || formatDuration(r.cameraOffSec)}"`,
     `"${r.status || 'Attended'}"`,
   ]);
 
@@ -117,14 +194,17 @@ function generateAttendanceCsv(records) {
 function generateAttendanceMarkdown(records) {
   if (!records || !records.length) return 'No attendance records captured.';
   const lines = [
-    '| Participant | Email | Joined At | Left At | Duration | Status |',
-    '|---|---|---|---|---|---|',
+    '| Participant | Email | Joined At | Left At | Duration | Camera | Cam ON | Cam OFF | Status |',
+    '|---|---|---|---|---|:---:|---|---|---|',
   ];
   for (const r of records) {
     const joined = r.joinedAtFormatted || formatTimestamp(r.joinedAt);
     const left = r.leftAtFormatted || formatTimestamp(r.leftAt);
     const dur = r.durationFormatted || formatDuration(r.durationSec);
-    lines.push(`| **${r.name}** | ${r.email || '—'} | ${joined} | ${left} | ${dur} | \`${r.status}\` |`);
+    const cam = r.cameraState === 'ON' ? '🟢 ON' : '🔴 OFF';
+    const camOn = r.cameraOnFormatted || formatDuration(r.cameraOnSec);
+    const camOff = r.cameraOffFormatted || formatDuration(r.cameraOffSec);
+    lines.push(`| **${r.name}** | ${r.email || '—'} | ${joined} | ${left} | ${dur} | ${cam} | ${camOn} | ${camOff} | \`${r.status}\` |`);
   }
   return lines.join('\n');
 }
@@ -147,6 +227,7 @@ function exportAttendanceForSession(room, sessionDirPath) {
 module.exports = {
   recordJoin,
   recordLeave,
+  recordCameraChange,
   getRoomAttendance,
   generateAttendanceCsv,
   generateAttendanceMarkdown,

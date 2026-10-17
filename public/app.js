@@ -43,6 +43,7 @@
   let unread = 0;
   let joinedAt = null;
   let clockTimer = null;
+  let cameraCheckTimer = null;
   let wakeLock = null;
   let audioKeepAliveCtx = null;
   let isAiNotesActive = true;
@@ -553,7 +554,7 @@
 
       const { token, url, room: rn } = await api('/api/token', {
         method: 'POST',
-        body: { name, room: cleanRoom, email: userEmail, avatar: userAvatar, identity }
+        body: { name, room: cleanRoom, email: userEmail, avatar: userAvatar, identity, cameraOn: camOn }
       });
 
       store.set('tm_name', name);
@@ -602,8 +603,20 @@
       .on(RoomEvent.TrackUnsubscribed, render)
       .on(RoomEvent.TrackMuted, render)
       .on(RoomEvent.TrackUnmuted, render)
-      .on(RoomEvent.LocalTrackPublished, (pub) => { if (pub.source === Track.Source.Camera) applyBackground(pub.track); render(); })
-      .on(RoomEvent.LocalTrackUnpublished, () => { render(); syncButtons(); })
+      .on(RoomEvent.LocalTrackPublished, (pub) => {
+        if (pub.source === Track.Source.Camera) {
+          applyBackground(pub.track);
+          notifyCameraState(true);
+        }
+        render();
+      })
+      .on(RoomEvent.LocalTrackUnpublished, (pub) => {
+        if (pub && pub.source === Track.Source.Camera) {
+          notifyCameraState(false);
+        }
+        render();
+        syncButtons();
+      })
       .on(RoomEvent.ActiveSpeakersChanged, markSpeakers)
       .on(RoomEvent.ConnectionQualityChanged, render)
       .on(RoomEvent.DataReceived, onData)
@@ -618,7 +631,20 @@
         }
       });
 
-    await room.connect(url, token);
+    try {
+      await room.connect(url, token);
+    } catch (err) {
+      if (err.message && (err.message.includes('4001') || err.message.includes('expired'))) {
+        console.warn('LiveKit clock-skew error, fetching freshly synchronized token...');
+        const ref = await api('/api/token', {
+          method: 'POST',
+          body: { name: room.localParticipant?.name || 'User', room: roomName, identity: localIdentity, cameraOn: camOn }
+        });
+        await room.connect(ref.url, ref.token);
+      } else {
+        throw err;
+      }
+    }
     await keepPhoneAwake();
     startMobileAudioKeepAlive();
 
@@ -628,6 +654,7 @@
     await room.localParticipant.setCameraEnabled(camOn, { deviceId: $('camSelect').value || undefined }).catch(() => toast('Camera unavailable'));
     await applyBackground(localCamTrack());
 
+    document.body.classList.add('in-call');
     $('lobby').classList.add('hidden');
     $('meeting').classList.remove('hidden');
     $('roomTitle').textContent = roomName;
@@ -636,6 +663,17 @@
     joinedAt = Date.now();
     tickClock();
     clockTimer = setInterval(tickClock, 1000);
+
+    // Periodic camera reminder (if OFF) & attendee snapshot (if ON)
+    cameraCheckTimer = setInterval(() => {
+      if (!room || !room.localParticipant) return;
+      const isCam = room.localParticipant.isCameraEnabled;
+      if (!isCam) {
+        toast('📹 Friendly reminder: Your camera is currently off. Turning it on helps team engagement!', 5000);
+      } else {
+        takeAttendeeSnapshot();
+      }
+    }, 120000);
 
     syncButtons();
     render();
@@ -671,8 +709,10 @@
   }
 
   function onDisconnected() {
+    document.body.classList.remove('in-call');
     notifyAttendanceLeave();
     clearInterval(clockTimer);
+    if (cameraCheckTimer) { clearInterval(cameraCheckTimer); cameraCheckTimer = null; }
     if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
     if (audioKeepAliveCtx) { audioKeepAliveCtx.close().catch(() => {}); audioKeepAliveCtx = null; }
     if (localRecorder) stopLocalRecording();
@@ -681,6 +721,33 @@
     $('meeting').classList.add('hidden');
     $('lobby').classList.remove('hidden');
     startPreview();
+  }
+
+  function notifyCameraState(isCameraOn) {
+    if (!roomName || !localIdentity) return;
+    api('/api/attendance/camera', {
+      method: 'POST',
+      body: { room: roomName, identity: localIdentity, cameraOn: Boolean(isCameraOn) }
+    }).catch(() => {});
+  }
+
+  async function takeAttendeeSnapshot() {
+    if (!room || !roomName) return;
+    try {
+      const localVideo = $('grid')?.querySelector('.tile.local video');
+      if (!localVideo || localVideo.classList.contains('hidden') || localVideo.videoWidth === 0) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = 320;
+      canvas.height = 180;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(localVideo, 0, 0, 320, 180);
+      const imageBase64 = canvas.toDataURL('image/jpeg', 0.65);
+      const targetSession = recSessionId || `room_${normalizeRoomSlug(roomName)}`;
+      await api(`/api/sessions/${targetSession}/snapshot`, {
+        method: 'POST',
+        body: { imageBase64, speaker: room.localParticipant.name || room.localParticipant.identity }
+      });
+    } catch (e) {}
   }
 
   function tickClock() {
@@ -849,11 +916,7 @@
         if (!keep.has(el.dataset.key)) el.remove();
       });
 
-      grid.querySelectorAll('.tile').forEach((el) => {
-        el.style.width = '';
-        el.style.height = '';
-        el.classList.remove('small-tile', 'xsmall-tile');
-      });
+      layoutFilmstrip();
     } else {
       grid.classList.remove('has-screen');
       const screenStage = $('screenStage');
@@ -881,6 +944,37 @@
     renderPeople();
   }
 
+  // ⚡ SENIOR DEVELOPER DYNAMIC FILMSTRIP LAYOUT (Screen Share View)
+  function layoutFilmstrip() {
+    const filmstrip = $('filmstrip');
+    if (!filmstrip) return;
+    const tiles = filmstrip.querySelectorAll('.tile');
+    const count = tiles.length;
+    if (!count) return;
+
+    if (window.innerWidth <= 768) {
+      tiles.forEach((el) => {
+        el.style.width = '145px';
+        el.style.minWidth = '145px';
+        el.style.height = '100%';
+        el.classList.add('small-tile');
+      });
+      return;
+    }
+
+    const availH = filmstrip.clientHeight || (window.innerHeight - 140);
+    const gap = 8;
+    const targetH = Math.max(75, Math.min(180, Math.floor((availH - (count - 1) * gap) / count)));
+    tiles.forEach((el) => {
+      el.style.width = '100%';
+      el.style.minWidth = '';
+      el.style.height = `${targetH}px`;
+      el.style.maxHeight = `${targetH}px`;
+      el.classList.toggle('small-tile', targetH < 130);
+      el.classList.toggle('xsmall-tile', targetH < 90);
+    });
+  }
+
   // ⚡ SENIOR DEVELOPER OPTIMAL TILE GEOMETRY CALCULATION (Google Meet Standard)
   function layoutGrid(n) {
     const grid = $('grid');
@@ -888,11 +982,7 @@
 
     // When screen share is focused, CSS grid handles the layout
     if (grid.classList.contains('has-screen')) {
-      grid.querySelectorAll('.tile').forEach((el) => {
-        el.style.width = '';
-        el.style.height = '';
-        el.classList.remove('small-tile', 'xsmall-tile');
-      });
+      layoutFilmstrip();
       return;
     }
 
@@ -950,7 +1040,11 @@
       el.classList.toggle('xsmall-tile', bestWidth < 180 || bestHeight < 120);
     });
   }
-  window.addEventListener('resize', () => room && render());
+  window.addEventListener('resize', () => {
+    if (!room) return;
+    render();
+    if ($('grid')?.classList.contains('has-screen')) layoutFilmstrip();
+  });
   if (typeof ResizeObserver !== 'undefined') {
     const gridEl = $('grid');
     if (gridEl) {
@@ -1005,7 +1099,7 @@
           <div class="people-status">
             ${raisedHands.has(p.identity) ? '✋' : ''}
             <span>${!mic || mic.isMuted ? '🔇' : '🎙️'}</span>
-            <span>${!cam || cam.isMuted ? '🚫' : '📷'}</span>
+            <span>${!cam || cam.isMuted ? '<span class="status-badge cam-off" title="Camera OFF">📷 OFF</span>' : '<span class="status-badge cam-on" title="Camera ON">📷 ON</span>'}</span>
           </div>
         </li>`;
       })
@@ -1261,7 +1355,7 @@
 
   // ---------- 11. FLOATING BOT & DYNAMIC KEY ROTATION ----------
   function setupFloatingBot() {
-    $('floatingBotBtn').onclick = async () => {
+    const openKeysModal = async () => {
       try {
         const keys = await api('/api/admin/keys');
         $('keyLivekitUrl').value = keys.livekitUrl || '';
@@ -1270,6 +1364,9 @@
       } catch (e) {}
       $('modalKeys').classList.remove('hidden');
     };
+
+    $('floatingBotBtn').onclick = openKeysModal;
+    $('mobileLobbyKeysBtn')?.addEventListener('click', openKeysModal);
 
     $('closeModalKeys').onclick = () => $('modalKeys').classList.add('hidden');
 
@@ -1303,7 +1400,16 @@
   }
 
   $('micBtn').onclick = async () => { await room.localParticipant.setMicrophoneEnabled(!room.localParticipant.isMicrophoneEnabled); syncButtons(); render(); };
-  $('camBtn').onclick = async () => { await room.localParticipant.setCameraEnabled(!room.localParticipant.isCameraEnabled); syncButtons(); render(); };
+  $('camBtn').onclick = async () => {
+    const newState = !room.localParticipant.isCameraEnabled;
+    await room.localParticipant.setCameraEnabled(newState);
+    syncButtons();
+    render();
+    notifyCameraState(newState);
+    if (newState) {
+      setTimeout(takeAttendeeSnapshot, 1500);
+    }
+  };
   $('shareBtn').onclick = async () => {
     try {
       await room.localParticipant.setScreenShareEnabled(!room.localParticipant.isScreenShareEnabled, { audio: true, selfBrowserSurface: 'exclude' });
@@ -1404,6 +1510,8 @@
   $('sheetRecBtn')?.addEventListener('click', () => { closeMobileSheet(); $('recBtn')?.click(); });
   $('sheetInfoBtn')?.addEventListener('click', () => { closeMobileSheet(); $('infoBtn')?.click(); });
   $('sheetAiNotesBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnAiNotesToggle')?.click(); });
+  $('sheetDriveBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnDriveFolder')?.click(); });
+  $('sheetAttendanceBtn')?.addEventListener('click', () => { closeMobileSheet(); $('btnExportAttendance')?.click(); });
 
   $('mobileTopPeopleBtn')?.addEventListener('click', () => $('peopleBtn')?.click());
   $('mobileTopChatBtn')?.addEventListener('click', () => $('chatBtn')?.click());

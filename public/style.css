@@ -36,14 +36,24 @@
 }
 
 html, body {
-  height: 100%;
+  min-height: 100%;
   width: 100%;
   background: var(--gm-bg);
   color: var(--gm-text);
   font-family: 'Google Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow: hidden;
+}
+
+body:not(.in-call) {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.in-call {
+  overflow: hidden !important;
+  height: 100%;
+  height: 100dvh;
 }
 
 button, input, select {
@@ -60,11 +70,14 @@ button, input, select {
    ========================================================================== */
 
 .meet-lobby {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--gm-bg);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(48px + env(safe-area-inset-bottom, 24px));
 }
 
 .lobby-topbar {
@@ -115,6 +128,34 @@ button, input, select {
   font-size: 14px;
   color: var(--gm-text-secondary);
   font-weight: 500;
+}
+
+.lobby-icon-btn {
+  background: var(--gm-surface-elevated);
+  border: 1px solid var(--gm-border);
+  border-radius: var(--gm-radius-pill);
+  color: var(--gm-text);
+  font-size: 14px;
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.lobby-icon-btn:hover {
+  background: var(--gm-surface-2);
+}
+
+.lobby-icon-btn:active {
+  transform: scale(0.95);
+}
+
+@media (min-width: 821px) {
+  .mobile-only-inline {
+    display: none !important;
+  }
 }
 
 .lobby-container {
@@ -743,12 +784,15 @@ button, input, select {
 
 .participant-filmstrip .tile {
   width: 100% !important;
-  min-height: 135px !important;
-  height: 135px !important;
-  aspect-ratio: 16 / 9 !important;
-  flex-shrink: 0 !important;
+  flex: 1 1 auto !important;
+  min-height: 75px !important;
+  max-height: 200px !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
   border-radius: var(--gm-radius-md) !important;
   margin: 0 !important;
+  overflow: hidden;
+  position: relative;
 }
 
 /* Individual Video Tile */
@@ -2102,17 +2146,84 @@ button, input, select {
    MOBILE & TABLET RESPONSIVENESS
    ========================================================================== */
 
+/* Camera Status Badges in People Tab */
+.status-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  vertical-align: middle;
+}
+.status-badge.cam-on {
+  background: rgba(52, 168, 83, 0.2);
+  color: #81c995;
+  border: 1px solid rgba(52, 168, 83, 0.4);
+}
+.status-badge.cam-off {
+  background: rgba(234, 67, 53, 0.2);
+  color: #f28b82;
+  border: 1px solid rgba(234, 67, 53, 0.4);
+}
+
 @media (max-width: 900px) {
   .lobby-container {
     flex-direction: column;
-    gap: 24px;
-    padding: 16px;
+    gap: 18px;
+    padding: 12px 16px calc(48px + env(safe-area-inset-bottom, 24px));
+    max-width: 520px;
   }
 
   .lobby-stage-col,
   .lobby-form-col {
     max-width: 100%;
     width: 100%;
+  }
+
+  .preview-card {
+    max-height: 230px;
+    border-radius: var(--gm-radius-md);
+  }
+
+  .preview-footnote {
+    font-size: 11.5px;
+    margin-top: 6px;
+  }
+
+  .join-card {
+    padding: 18px 16px;
+  }
+
+  .join-title {
+    font-size: 22px;
+  }
+
+  .room-chips {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-room-choice {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  /* 16px font-size prevents iOS Safari from automatically zooming into form fields */
+  .field-group input,
+  .field-group select {
+    font-size: 16px !important;
+    padding: 12px 14px;
+  }
+
+  .meet-btn-join {
+    height: 48px;
+    font-size: 16px;
+    font-weight: 600;
+    width: 100%;
+    border-radius: 24px;
+    margin-top: 14px;
+    box-shadow: 0 2px 8px rgba(26, 115, 232, 0.4);
   }
 
   .bar-left {
@@ -2127,6 +2238,13 @@ button, input, select {
     border-left: none;
     margin: 0;
     z-index: 100;
+  }
+}
+
+/* Hide floating key bot on mobile to avoid overlapping inputs */
+@media (max-width: 820px) {
+  .floating-bot-btn {
+    display: none !important;
   }
 }
 
@@ -2158,8 +2276,8 @@ button, input, select {
   }
 
   .participant-filmstrip .tile {
-    width: 150px !important;
-    min-width: 150px !important;
+    width: 145px !important;
+    min-width: 145px !important;
     height: 100% !important;
     min-height: unset !important;
     aspect-ratio: 16 / 9 !important;
@@ -2167,8 +2285,8 @@ button, input, select {
   }
 }
 
-/* Mobile Screens (<= 640px) - Google Meet 5-button touch experience */
-@media (max-width: 640px) {
+/* Mobile Screens (<= 820px) - Google Meet 5-button touch experience */
+@media (max-width: 820px) {
   .meet-topbar {
     padding: 8px 12px;
     height: 48px;
@@ -2185,8 +2303,8 @@ button, input, select {
   }
 
   .meet-bottom-bar {
-    padding: 0 16px;
-    height: 72px;
+    padding: 0 12px calc(env(safe-area-inset-bottom, 10px));
+    height: calc(64px + env(safe-area-inset-bottom, 10px));
   }
 
   .bar-left, .bar-right {
@@ -2195,8 +2313,8 @@ button, input, select {
 
   .bar-center {
     width: 100%;
-    justify-content: space-around !important;
-    gap: 0 !important;
+    justify-content: space-evenly !important;
+    gap: 4px !important;
   }
 
   /* Hide secondary desktop buttons on mobile bottom bar */
@@ -2209,10 +2327,11 @@ button, input, select {
     display: flex !important;
   }
 
-  /* Primary touch targets on mobile >= 48px */
+  /* Primary touch targets on mobile: 48px circular buttons */
   .meet-btn-circle {
     width: 48px !important;
     height: 48px !important;
+    min-width: 48px !important;
     flex-shrink: 0;
   }
 
@@ -2223,6 +2342,7 @@ button, input, select {
 
   .meet-btn-leave {
     height: 48px !important;
+    min-width: 60px !important;
     padding: 0 16px !important;
     border-radius: 24px !important;
     flex-shrink: 0;
@@ -2235,6 +2355,8 @@ button, input, select {
 
   .hand-reaction-group {
     display: flex;
+    align-items: center;
+    position: relative;
   }
 
   .reaction-pill-toggle {

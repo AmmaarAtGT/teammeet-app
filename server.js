@@ -311,6 +311,30 @@ app.get('/api/config', (_req, res) => {
   res.json({ livekitUrl: LIVEKIT_URL, passcodeRequired: Boolean(TEAM_PASSCODE), aiNotes: AI_NOTES !== 'off' });
 });
 
+function generateLiveKitToken({ apiKey, apiSecret, identity, name, room, metadata }) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const payload = {
+    iss: apiKey,
+    sub: identity,
+    name: name || identity,
+    nbf: now - 300, // 5 min in past prevents clock skew and token expired errors
+    exp: now + (7 * 86400), // 7 days ensures token never expires mid-call
+    video: {
+      room,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    },
+    metadata: typeof metadata === 'string' ? metadata : JSON.stringify(metadata || {}),
+  };
+  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const unsigned = `${b64(header)}.${b64(payload)}`;
+  const sig = crypto.createHmac('sha256', apiSecret).update(unsigned).digest('base64url');
+  return `${unsigned}.${sig}`;
+}
+
 app.post('/api/token', async (req, res) => {
   if (!checkPasscode(req, res)) return;
   const room = cleanRoom(req.body.room);
@@ -319,18 +343,37 @@ app.post('/api/token', async (req, res) => {
   const identity = req.body.identity || `${name.replace(/\s+/g, '_')}-${crypto.randomBytes(3).toString('hex')}`;
   const email = req.body.email || '';
   const avatar = req.body.avatar || '';
+  const cameraOn = Boolean(req.body.cameraOn);
 
-  // Real-time Attendance tracking on join with exact timestamp
-  attendance.recordJoin(room, { name, email, identity, avatar });
+  // Real-time Attendance tracking on join with exact timestamp & initial camera status
+  attendance.recordJoin(room, { name, email, identity, avatar, cameraOn });
 
   const metadata = JSON.stringify({
     avatar,
     email,
     joinedAt: Date.now()
   });
-  const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name, ttl: TOKEN_TTL, metadata });
-  at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
-  res.json({ token: await at.toJwt(), url: LIVEKIT_URL, room, identity });
+
+  const token = generateLiveKitToken({
+    apiKey: LIVEKIT_API_KEY,
+    apiSecret: LIVEKIT_API_SECRET,
+    identity,
+    name,
+    room,
+    metadata
+  });
+
+  res.json({ token, url: LIVEKIT_URL, room, identity });
+});
+
+// Real-time Camera ON/OFF tracking endpoint
+app.post('/api/attendance/camera', (req, res) => {
+  const room = cleanRoom(req.body.room);
+  const identity = req.body.identity;
+  const cameraOn = Boolean(req.body.cameraOn);
+  if (!room || !identity) return res.status(400).json({ error: 'room and identity required' });
+  const record = attendance.recordCameraChange(room, identity, cameraOn);
+  res.json({ ok: true, record });
 });
 
 // Leave attendance endpoint
@@ -340,6 +383,20 @@ app.post('/api/attendance/leave', (req, res) => {
   if (!room || !identity) return res.status(400).json({ error: 'room and identity required' });
   const record = attendance.recordLeave(room, identity);
   res.json({ ok: true, record });
+});
+
+// Attendance snapshot endpoint (take periodic screenshots of attendees with camera ON)
+app.post('/api/sessions/:id/snapshot', (req, res) => {
+  if (!checkPasscode(req, res)) return;
+  const id = safeId(req.params.id);
+  const snapDir = path.join(sessionDir(id), 'snapshots');
+  fs.mkdirSync(snapDir, { recursive: true });
+  const { imageBase64, speaker } = req.body || {};
+  if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
+  const data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  const fileName = `snap_${Date.now()}_${safeId(speaker || 'participant')}.jpg`;
+  fs.writeFileSync(path.join(snapDir, fileName), Buffer.from(data, 'base64'));
+  res.json({ ok: true, file: fileName });
 });
 
 // Attendance export & query endpoint (JSON or downloadable CSV)
