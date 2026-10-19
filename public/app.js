@@ -1566,42 +1566,64 @@
       setTimeout(takeAttendeeSnapshot, 1500);
     }
   };
-  async function toggleScreenShare() {
-    if (!room || !room.localParticipant) return;
-    if (room.localParticipant.isScreenShareEnabled) {
-      await room.localParticipant.setScreenShareEnabled(false);
-      syncButtons();
-      render();
-      return;
-    }
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      toast('📱 Screen sharing is not supported in this mobile browser. Please open in Safari or Chrome.', 6000);
-      return;
-    }
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 820;
-    const opts = isMobile ? { audio: false } : { audio: true, selfBrowserSurface: 'exclude' };
+  
+async function toggleScreenShare() {
+  if (!room?.localParticipant) return;
+
+  const participant = room.localParticipant;
+
+  if (participant.isScreenShareEnabled) {
     try {
-      await room.localParticipant.setScreenShareEnabled(true, opts);
-    } catch (e) {
-      if (e.name === 'NotAllowedError') return;
-      try {
-        await room.localParticipant.setScreenShareEnabled(true, {});
-      } catch (err2) {
-        if (err2.name !== 'NotAllowedError') {
-          toast('Screen share failed: ' + (err2.message || 'Permission denied'));
-        }
-      }
+      await participant.setScreenShareEnabled(false);
+    } catch (err) {
+      console.error('Stop screen share failed:', err);
+      toast('Could not stop screen sharing.');
     }
+
+    syncButtons();
+    render();
+    return;
+  }
+
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    toast(
+      'Screen sharing is not supported by this browser. Try a supported desktop browser.',
+      6000
+    );
+    return;
+  }
+
+  try {
+    await participant.setScreenShareEnabled(true, {
+      audio: false
+    });
+  } catch (err) {
+    console.error('Screen share failed:', err);
+
+    if (err.name === 'NotAllowedError') {
+      toast('Screen sharing was cancelled or permission was denied.');
+    } else {
+      toast('Screen share failed: ' + (err.message || err.name));
+    }
+  } finally {
     syncButtons();
     render();
   }
-  $('shareBtn').onclick = toggleScreenShare;
-  $('leaveBtn').onclick = () => room.disconnect();
+}
 
-  $('copyLinkBtn').onclick = async () => {
-    const link = `${location.origin}/${roomName}`;
-    try { await navigator.clipboard.writeText(link); toast('Invite link copied'); } catch { prompt('Copy this link', link); }
-  };
+$('shareBtn').onclick = toggleScreenShare;
+$('leaveBtn').onclick = () => room.disconnect();
+
+$('copyLinkBtn').onclick = async () => {
+  const link = `${location.origin}/${roomName}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    toast('Invite link copied');
+  } catch {
+    prompt('Copy this link', link);
+  }
+};
+
 
   const enc = new TextEncoder(), dec = new TextDecoder();
   function send(obj) {
