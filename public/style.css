@@ -717,10 +717,12 @@ button, input, select {
   flex-direction: row !important;
   width: 100% !important;
   height: 100% !important;
+  min-height: 0 !important;
   padding: 8px 12px !important;
   gap: 12px !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
+  flex: 1 1 auto !important;
 }
 
 /* Primary Screen Share Stage Viewport */
