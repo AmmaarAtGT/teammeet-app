@@ -2567,3 +2567,35 @@ button, input, select {
     max-height: 260px;
   }
 }
+
+
+
+/* TeamMeet mobile participant layout adjustment */
+@media (max-width: 768px) {
+  .grid:not(.has-screen) {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px;
+    overflow-y: auto;
+    min-height: 0;
+    box-sizing: border-box;
+  }
+
+  .grid:not(.has-screen) .tile {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 180px;
+    box-sizing: border-box;
+  }
+
+  .grid:not(.has-screen) .tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+}
